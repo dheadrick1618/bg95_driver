@@ -197,4 +197,4 @@ const at_cmd_t AT_CMD_QMTOPEN = {
                     [AT_CMD_TYPE_WRITE] = {.parser    = qmtopen_write_parser,
                                            .formatter = qmtopen_write_formatter}},
     .timeout_ms  = 10000, // Spec says 'depends on network'
-    .retry_count = 2};
+};

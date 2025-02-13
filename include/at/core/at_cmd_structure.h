@@ -31,7 +31,7 @@ typedef struct
 {
   char*         raw_response;
   size_t        response_len;
-  void*         parsed_data; // Type-specific parsed data
+  void*         parsed_data; // Type-specific struct holding result of parsing response data
   at_cmd_type_t cmd_type;
   esp_err_t     status;
 } at_cmd_response_t;
@@ -54,5 +54,4 @@ typedef struct
   const char*        description;
   at_cmd_type_info_t type_info[AT_CMD_TYPE_MAX];
   uint32_t           timeout_ms;
-  uint32_t           retry_count;
 } at_cmd_t;
