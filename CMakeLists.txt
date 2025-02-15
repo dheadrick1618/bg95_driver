@@ -11,6 +11,7 @@ idf_component_register(
         "src/at/core/at_cmd_parser.c"
         "src/bg95/bg95_driver.c"
         "src/bg95/bg95_uart_interface.c"
+        "src/bg95/bg95_uart_mock_interface.c" 
     INCLUDE_DIRS 
         "include"
         "include/at"
