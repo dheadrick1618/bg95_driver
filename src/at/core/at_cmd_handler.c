@@ -72,6 +72,79 @@ bool has_command_terminated(const char* raw_response, const at_cmd_t* cmd, at_cm
   return strstr(ok_pos, AT_CRLF) && strstr(data_pos, AT_CRLF);
 }
 
+esp_err_t validate_basic_response(const char* raw_response, at_parsed_response_t* parsed_base)
+{
+  esp_err_t err = at_cmd_parse_response(raw_response, parsed_base);
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+
+  if (!parsed_base->basic_response_is_ok)
+  {
+    ESP_LOGE(TAG, "Parsed basic response is ERROR (not OK)");
+    return ESP_FAIL;
+  }
+
+  return ESP_OK;
+}
+
+esp_err_t parse_at_cmd_specific_data_response(const at_cmd_t*             cmd,
+                                              at_cmd_type_t               type,
+                                              const char*                 raw_response,
+                                              const at_parsed_response_t* parsed_base,
+                                              void*                       response_data)
+{
+  if (cmd->type_info[type].parser && response_data && parsed_base->has_data_response == true)
+  {
+    return cmd->type_info[type].parser(raw_response, response_data);
+  }
+  return ESP_OK;
+}
+
+esp_err_t read_at_cmd_response(at_cmd_handler_t* handler,
+                               const at_cmd_t*   cmd,
+                               at_cmd_type_t     type,
+                               char*             response_buffer,
+                               size_t            buffer_size)
+{
+  uint32_t start_time       = pdTICKS_TO_MS(xTaskGetTickCount());
+  size_t   total_bytes_read = 0;
+  char     temp_buffer[AT_CMD_READ_CHUNK_SIZE];
+  bool     response_complete = false;
+
+  while ((pdTICKS_TO_MS(xTaskGetTickCount()) - start_time) < cmd->timeout_ms)
+  {
+    size_t    bytes_read = 0;
+    esp_err_t err        = handler->uart.read(temp_buffer,
+                                       sizeof(temp_buffer) - 1,
+                                       &bytes_read,
+                                       AT_CMD_READ_CHUNK_INTERVAL_MS,
+                                       handler->uart.context);
+
+    if (err == ESP_OK && bytes_read > 0)
+    {
+      if ((total_bytes_read + bytes_read) >= buffer_size)
+      {
+        return ESP_ERR_INVALID_SIZE;
+      }
+
+      memcpy(response_buffer + total_bytes_read, temp_buffer, bytes_read);
+      total_bytes_read += bytes_read;
+      response_buffer[total_bytes_read] = '\0';
+
+      if (has_command_terminated(response_buffer, cmd, type))
+      {
+        response_complete = true;
+        break;
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
+
+  return response_complete ? ESP_OK : ESP_ERR_TIMEOUT;
+}
+
 esp_err_t at_cmd_handler_send_and_receive_cmd(at_cmd_handler_t* handler,
                                               const at_cmd_t*   cmd,
                                               at_cmd_type_t     type,
@@ -84,6 +157,7 @@ esp_err_t at_cmd_handler_send_and_receive_cmd(at_cmd_handler_t* handler,
     return ESP_ERR_INVALID_ARG;
   }
 
+  // Validate UART interface
   if (!handler->uart.write || !handler->uart.read || !handler->uart.context)
   {
     ESP_LOGE(TAG, "UART interface not properly initialized");
@@ -108,93 +182,33 @@ esp_err_t at_cmd_handler_send_and_receive_cmd(at_cmd_handler_t* handler,
     return err;
   }
 
-  // Allocate buffer for reading response
+  // Allocate and read response
   char* raw_response = malloc(AT_CMD_MAX_RESPONSE_LEN);
   if (!raw_response)
   {
     return ESP_ERR_NO_MEM;
   }
 
-  // Read response in chunks until complete or timeout
-  uint32_t start_time       = pdTICKS_TO_MS(xTaskGetTickCount());
-  size_t   total_bytes_read = 0;
-  char     temp_buffer[AT_CMD_READ_CHUNK_SIZE];
-  bool     response_complete = false;
-
-  while ((pdTICKS_TO_MS(xTaskGetTickCount()) - start_time) < cmd->timeout_ms)
-  {
-    size_t bytes_read = 0;
-
-    err = handler->uart.read(temp_buffer,
-                             sizeof(temp_buffer) - 1,
-                             &bytes_read,
-                             AT_CMD_READ_CHUNK_INTERVAL_MS,
-                             handler->uart.context);
-
-    if (err == ESP_OK && bytes_read > 0)
-    {
-      // Check for buffer overflow
-      if ((total_bytes_read + bytes_read) >= AT_CMD_MAX_RESPONSE_LEN)
-      {
-        ESP_LOGE(TAG, "UART interface READ failed - buffer overflow");
-        free(raw_response);
-        return ESP_ERR_INVALID_SIZE;
-      }
-
-      // Append new data to raw response buffer, using total_bytes_read as index
-      // NOTE: memcpy does not check for null terminating char - copies exactly 'bytes read' amount
-      memcpy(raw_response + total_bytes_read, temp_buffer, bytes_read);
-      total_bytes_read += bytes_read;
-      raw_response[total_bytes_read] = '\0';
-
-      if (has_command_terminated(raw_response, cmd, type))
-      {
-        response_complete = true;
-        break;
-      }
-    }
-
-    vTaskDelay(pdMS_TO_TICKS(1));
-  }
-
-  if (!response_complete)
-  {
-    ESP_LOGE(TAG, "TIMEOUT waiting for response. This was recv'd: %s", raw_response);
-    free(raw_response);
-    return ESP_ERR_TIMEOUT;
-  }
-
-  ESP_LOGI(TAG, "Received response: %s", raw_response);
-
-  // Parse base response first
-  at_parsed_response_t parsed_base = {0};
-  err                              = at_cmd_parse_response(raw_response, &parsed_base);
+  err = read_at_cmd_response(handler, cmd, type, raw_response, AT_CMD_MAX_RESPONSE_LEN);
   if (err != ESP_OK)
   {
     free(raw_response);
     return err;
   }
 
-  // Check if response indicates an error
-  if (!parsed_base.basic_response_is_ok)
+  ESP_LOGI(TAG, "Received response: %s", raw_response);
+
+  // Parse and validate basic response
+  at_parsed_response_t parsed_base = {0};
+  err                              = validate_basic_response(raw_response, &parsed_base);
+  if (err != ESP_OK)
   {
-    ESP_LOGE(TAG, "Parsed basic response is ERROR (not OK)");
     free(raw_response);
-    return ESP_FAIL;
-    // return parsed_base.cme_error_code ? ESP_ERR_AT_CME_ERROR : ESP_ERR_AT_ERROR;
+    return err;
   }
 
-  // If command has a data parser defined, response data pointer is provided, has_data_response flag
-  // is set - then attempt to parse the data response using the the specific parsing fxn provided
-  // via fxn pointer
-  if (cmd->type_info[type].parser && response_data && parsed_base.has_data_response)
-  {
-    err = cmd->type_info[type].parser(raw_response, response_data);
-    if (err != ESP_OK)
-    {
-      ESP_LOGE(TAG, "Command-specific Data response parsing failed");
-    }
-  }
+  // Parse command-specific response if needed
+  err = parse_at_cmd_specific_data_response(cmd, type, raw_response, &parsed_base, response_data);
 
   free(raw_response);
   return err;

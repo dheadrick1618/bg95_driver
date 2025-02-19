@@ -73,6 +73,8 @@ static esp_err_t uart_mock_read_impl(
   size_t response_len = strlen(response->cmd_response);
   if (response_len > max_len)
   {
+    // IF response is longer than assigned buffer, copy up to the available buffer len of the
+    // response
     response_len = max_len;
   }
   memcpy(buffer, response->cmd_response, response_len);

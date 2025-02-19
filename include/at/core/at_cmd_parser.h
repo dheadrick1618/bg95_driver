@@ -1,6 +1,9 @@
 #pragma once
 
-#include "at_cmd_structure.h"
+#include "esp_err.h"
+
+#include <stdbool.h>
+#include <stddef.h>
 
 typedef struct
 {
