@@ -64,6 +64,37 @@ TODO - waiting until project is more mature incase things change
 - Provides type-safe function calls
 - Implements common cellular operations
 
+
+## Steps to connect to a cell network:
+
+1. Check module and SIM card status 
+```
+AT+CPIN?        # Check if SIM is ready
+AT+CSQ          # Check signal quality
+```
+
+2. Configure network settings 
+```
+AT+COPS=?       # List available operators
+AT+COPS=1,2,"<operator_code>"    # Select operator (use specific operator code)
+```
+
+3. Configure PDP context for data connection 
+```
+AT+CGDCONT=1,"IP","<your_apn>"   # Define PDP context with your carrier's APN
+AT+CGACT=1,1                      # Activate PDP context
+AT+CGPADDR=1                      # Verify IP address assignment
+```
+
+4. Check network registration
+```
+AT+CREG?        # Check network registration status
+AT+CEREG?       # Check EPS (LTE) network registration status
+```
+
+5. Ready to use higher level application layer communication protocol such  as MQTT or HTTP ....
+
+
 ## Testing  
 
 TODO...
