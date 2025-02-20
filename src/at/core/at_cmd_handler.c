@@ -157,6 +157,13 @@ esp_err_t at_cmd_handler_send_and_receive_cmd(at_cmd_handler_t* handler,
     return ESP_ERR_INVALID_ARG;
   }
 
+  // Add this check early
+  if (!at_cmd_type_is_implemented(cmd, type))
+  {
+    ESP_LOGE(TAG, "Command %s does not implement type %d", cmd->name, type);
+    return ESP_ERR_NOT_SUPPORTED;
+  }
+
   // Validate UART interface
   if (!handler->uart.write || !handler->uart.read || !handler->uart.context)
   {

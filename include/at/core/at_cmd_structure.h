@@ -14,6 +14,9 @@
 // #define EXECUTE_CMD(cmd) AT_PREFIX cmd AT_SUFFIX
 //------
 
+// NOTE: Macro for explicitly defining AT command types that are NOT implemented
+#define AT_CMD_TYPE_NOT_IMPLEMENTED {.parser = NULL, .formatter = NULL}
+
 #define AT_CMD_MAX_RESPONSE_LEN 2048
 #define AT_CMD_MAX_CMD_LEN 256
 
@@ -55,3 +58,12 @@ typedef struct
   at_cmd_type_info_t type_info[AT_CMD_TYPE_MAX];
   uint32_t           timeout_ms;
 } at_cmd_t;
+
+static inline bool at_cmd_type_is_implemented(const at_cmd_t* cmd, at_cmd_type_t type)
+{
+  if (!cmd || type >= AT_CMD_TYPE_MAX)
+  {
+    return false;
+  }
+  return (cmd->type_info[type].parser != NULL || cmd->type_info[type].formatter != NULL);
+}
