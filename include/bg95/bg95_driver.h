@@ -1,4 +1,5 @@
 #pragma once
+#include "at_cmd_cpin.h"
 #include "at_cmd_handler.h"
 // #include "at_cmds.h"
 #include "bg95_uart_interface.h"
@@ -19,40 +20,44 @@ esp_err_t bg95_init(bg95_handle_t* handle, bg95_uart_interface_t* uart);
 // free handle pointer
 esp_err_t bg95_deinit(bg95_handle_t* handle);
 
+// HIGH LEVEL fxn called by user - this calls a sequence of AT CMDS to connect to network bearer
+esp_err_t bg95_connect_to_network(bg95_handle_t* handle);
+
 //    =========  COMMAND SPECIFIC USER EXPOSED FXNS (API)  ==========   //
 // =======================================================================
 
 // -------------------- SIM RELATED CMDS ---------------------------
-// // CPIN - Enter PIN
-// esp_err_t bg95_get_pin_status(bg95_handle_t* handle, cpin_read_response_t* status);
-// // esp_err_t bg95_enter_pin(bg95_handle_t* handle, const char* pin);
-// // esp_err_t bg95_enter_puk(bg95_handle_t* handle, const char* puk, const char* new_pin);
-//
-// // -------------------- NETWORK SERVICE CMDS ---------------------------
-// // CREG - Network Registration Status
+// CPIN - Enter PIN
+esp_err_t bg95_get_sim_card_status(bg95_handle_t* handle, cpin_status_t* cpin_status);
+// esp_err_t bg95_enter_pin(bg95_handle_t* handle, const char* pin);
+
+// -------------------- NETWORK SERVICE CMDS ---------------------------
+// CREG - Network Registration Status
 // esp_err_t bg95_get_network_registration(bg95_handle_t* handle, creg_read_response_t* status);
 // // esp_err_t bg95_set_network_registration_mode(bg95_handle_t* handle, uint8_t mode);
 // esp_err_t bg95_get_supported_registration_modes(bg95_handle_t*        handle,
 //                                                 creg_test_response_t* supported_modes);
 //
 // // COPS - Operator Selector
-// esp_err_t bg95_get_available_operators(bg95_handle_t* handle, cops_test_response_t* operators);
+// esp_err_t bg95_get_available_operators(bg95_handle_t* handle, cops_test_response_t*
+// operators);
 // // esp_err_t bg95_get_current_operator(bg95_handle_t* handle, cops_read_response_t*
 // operator_info);
 // // esp_err_t bg95_select_operator_manual(bg95_handle_t* handle, const cops_write_params_t*
 // params);
 // // esp_err_t bg95_select_operator_auto(bg95_handle_t* handle);
 //
-// // CSQ - Signal Quality Report
+// CSQ - Signal Quality Report
 // esp_err_t bg95_get_signal_quality(bg95_handle_t* handle, csq_response_t* signal_quality);
 // esp_err_t bg95_get_supported_signal_quality_values(bg95_handle_t*       handle,
 //                                                    csq_test_response_t* supported_values);
 //
 // // ---------------------- PACKET DOMAIN CMDS -----------------------------
 // // CGATT  - PS attach or detach
-// esp_err_t bg95_attach_to_ps_domain(bg95_handle_t* handle); // no other args needed, these just
-// send
-//                                                            // write cmd with state 0 or state 1
+// esp_err_t bg95_attach_to_ps_domain(bg95_handle_t* handle); // no other args needed, these
+// just send
+//                                                            // write cmd with state 0 or state
+//                                                            1
 // esp_err_t bg95_detach_from_ps_domain(bg95_handle_t* handle);
 // esp_err_t bg95_get_ps_attached_state(bg95_handle_t* handle, cgatt_read_params_t* state);
 //

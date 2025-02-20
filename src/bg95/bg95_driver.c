@@ -50,6 +50,52 @@ esp_err_t bg95_deinit(bg95_handle_t* handle)
   return ESP_OK;
 }
 
+esp_err_t bg95_get_sim_card_status(bg95_handle_t* handle, cpin_status_t* cpin_status)
+{
+  if (NULL == handle || NULL == cpin_status)
+  {
+    ESP_LOGE(TAG, "Invalid arg provided");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  return at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_CPIN, AT_CMD_TYPE_READ, NULL, cpin_status);
+}
+
+esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
+{
+  esp_err_t err;
+  // Check SIM card status
+  // -----------------------------------------------------------
+  cpin_status_t sim_card_status;
+  err = bg95_get_sim_card_status(handle, &sim_card_status);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to get PIN status: %d", err);
+    return ESP_FAIL;
+  }
+
+  // Check signal quality (AT+CSQ)
+  // -----------------------------------------------------------
+
+  // Check available operators list (AT+COPS)
+  // -----------------------------------------------------------
+
+  // Define PDP context with your carriers APN (AT+CGDCONT)
+  // -----------------------------------------------------------
+
+  // Activate PDP context (AT+CGACT)
+  // -----------------------------------------------------------
+
+  // Verify IP address assignment (AT+CGPADDR)
+  // -----------------------------------------------------------
+
+  // Check network registration status (AT+CREG)
+  // -----------------------------------------------------------
+
+  return ESP_OK;
+}
+
 // esp_err_t bg95_get_available_operators(bg95_handle_t* handle, cops_test_response_t* operators)
 // {
 //   if (!handle || !operators || !handle->initialized)
