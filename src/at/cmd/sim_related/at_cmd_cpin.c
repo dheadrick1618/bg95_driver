@@ -1,4 +1,4 @@
-#include "at_cmd_cpin.h"
+#include "sim_related/at_cmd_cpin.h"
 
 #include "at_cmd_structure.h"
 
