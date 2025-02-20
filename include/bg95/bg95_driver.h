@@ -48,6 +48,7 @@ esp_err_t bg95_get_sim_card_status(bg95_handle_t* handle, cpin_status_t* cpin_st
 // // esp_err_t bg95_select_operator_auto(bg95_handle_t* handle);
 //
 // CSQ - Signal Quality Report
+esp_err_t bg95_get_signal_quality_dbm(bg95_handle_t* handle, int16_t* rssi_dbm);
 // esp_err_t bg95_get_signal_quality(bg95_handle_t* handle, csq_response_t* signal_quality);
 // esp_err_t bg95_get_supported_signal_quality_values(bg95_handle_t*       handle,
 //                                                    csq_test_response_t* supported_values);

@@ -1,5 +1,6 @@
 #include "bg95_driver.h"
 
+#include "at_cmd_csq.h"
 #include "at_cmd_handler.h"
 #include "at_cmd_structure.h"
 
@@ -60,6 +61,59 @@ esp_err_t bg95_get_sim_card_status(bg95_handle_t* handle, cpin_status_t* cpin_st
 
   return at_cmd_handler_send_and_receive_cmd(
       &handle->at_handler, &AT_CMD_CPIN, AT_CMD_TYPE_READ, NULL, cpin_status);
+}
+
+esp_err_t bg95_get_signal_quality_dbm(bg95_handle_t* handle, int16_t* rssi_dbm)
+{
+  if (!handle || !rssi_dbm || !handle->initialized)
+  {
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Create response structure
+  csq_execute_response_t csq_response = {0};
+
+  // Send CSQ command and parse response
+  esp_err_t err =
+      at_cmd_handler_send_and_receive_cmd(&handle->at_handler,
+                                          &AT_CMD_CSQ,
+                                          AT_CMD_TYPE_EXECUTE,
+                                          NULL, // No parameters needed for EXECUTE command
+                                          &csq_response);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE("BG95_SIGNAL", "Failed to get signal quality: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // Convert RSSI to dBm
+  *rssi_dbm = csq_rssi_to_dbm(csq_response.rssi);
+
+  // // If ber pointer is provided, fill it too
+  // if (ber != NULL)
+  // {
+  //   *ber = csq_response.ber;
+  // }
+  //
+  // Log the signal quality
+  // ESP_LOGI("BG95_SIGNAL",
+  //          "Signal Quality: RSSI=%d (%d dBm), BER=%d (%s)",
+  //          csq_response.rssi,
+  //          *rssi_dbm,
+  //          csq_response.ber,
+  //          enum_to_str(csq_response.ber, CSQ_BER_MAP, CSQ_BER_MAP_SIZE));
+
+  ESP_LOGI("BG95_SIGNAL", "Signal Quality: RSSI=%d (%d dBm)", csq_response.rssi, *rssi_dbm);
+
+  // Check if the signal quality is known
+  if (csq_response.rssi == CSQ_RSSI_UNKNOWN)
+  {
+    ESP_LOGW("BG95_SIGNAL", "Signal quality unknown");
+    return ESP_ERR_NOT_FOUND; // Special error to indicate unknown signal
+  }
+
+  return ESP_OK;
 }
 
 esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
