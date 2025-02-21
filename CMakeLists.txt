@@ -12,6 +12,7 @@ idf_component_register(
         # "src/at/cmd/general"
         # "src/at/cmd/mqtt"
         "src/at/cmd/network_service/at_cmd_csq.c"
+        "src/at/cmd/network_service/at_cmd_cops.c"
         # "src/at/cmd/packet_domain"
         "src/at/cmd/sim_related/at_cmd_cpin.c"
     INCLUDE_DIRS 

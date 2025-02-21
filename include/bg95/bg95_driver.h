@@ -1,4 +1,5 @@
 #pragma once
+#include "at_cmd_cops.h"
 #include "at_cmd_cpin.h"
 #include "at_cmd_handler.h"
 // #include "at_cmds.h"
@@ -39,6 +40,14 @@ esp_err_t bg95_get_sim_card_status(bg95_handle_t* handle, cpin_status_t* cpin_st
 //                                                 creg_test_response_t* supported_modes);
 //
 // // COPS - Operator Selector
+/**
+ * @brief Get the current selected network operator
+ *
+ * @param handle Handle to the BG95 driver instance
+ * @param operator_data Pointer to structure where operator data will be stored
+ * @return esp_err_t ESP_OK on success, appropriate error code otherwise
+ */
+esp_err_t bg95_get_current_operator(bg95_handle_t* handle, cops_operator_data_t* operator_data);
 // esp_err_t bg95_get_available_operators(bg95_handle_t* handle, cops_test_response_t*
 // operators);
 // // esp_err_t bg95_get_current_operator(bg95_handle_t* handle, cops_read_response_t*

@@ -1,5 +1,6 @@
 #include "bg95_driver.h"
 
+#include "at_cmd_cops.h"
 #include "at_cmd_csq.h"
 #include "at_cmd_handler.h"
 #include "at_cmd_structure.h"
@@ -111,6 +112,86 @@ esp_err_t bg95_get_signal_quality_dbm(bg95_handle_t* handle, int16_t* rssi_dbm)
   {
     ESP_LOGW("BG95_SIGNAL", "Signal quality unknown");
     return ESP_ERR_NOT_FOUND; // Special error to indicate unknown signal
+  }
+
+  return ESP_OK;
+}
+
+esp_err_t bg95_get_current_operator(bg95_handle_t* handle, cops_operator_data_t* operator_data)
+{
+  if (!handle || !operator_data || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Create response structure
+  cops_read_response_t cops_response = {0};
+
+  // Send COPS read command and parse response
+  esp_err_t err = at_cmd_handler_send_and_receive_cmd(&handle->at_handler,
+                                                      &AT_CMD_COPS,
+                                                      AT_CMD_TYPE_READ,
+                                                      NULL, // No parameters needed for READ command
+                                                      &cops_response);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to get operator information: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // Transfer data from response to the operator_data output
+  operator_data->mode = cops_response.mode;
+
+  if (cops_response.present.has_format)
+  {
+    operator_data->format = cops_response.format;
+  }
+  else
+  {
+    // Default value if not provided
+    operator_data->format = COPS_FORMAT_LONG_ALPHA;
+  }
+
+  if (cops_response.present.has_operator)
+  {
+    strncpy(operator_data->operator_name,
+            cops_response.operator_name,
+            sizeof(operator_data->operator_name) - 1);
+    operator_data->operator_name[sizeof(operator_data->operator_name) - 1] =
+        '\0'; // Ensure null termination
+  }
+  else
+  {
+    operator_data->operator_name[0] = '\0';
+  }
+
+  if (cops_response.present.has_act)
+  {
+    operator_data->act = cops_response.act;
+  }
+  else
+  {
+    // Default to GSM if not provided
+    operator_data->act = COPS_ACT_GSM;
+  }
+
+  // Log the operator information
+  if (operator_data->operator_name[0] != '\0')
+  {
+    ESP_LOGI(TAG,
+             "Current operator: %s (Mode: %s, Format: %s, Act: %s)",
+             operator_data->operator_name,
+             enum_to_str(operator_data->mode, COPS_MODE_MAP, COPS_MODE_MAP_SIZE),
+             enum_to_str(operator_data->format, COPS_FORMAT_MAP, COPS_FORMAT_MAP_SIZE),
+             enum_to_str(operator_data->act, COPS_ACT_MAP, COPS_ACT_MAP_SIZE));
+  }
+  else
+  {
+    ESP_LOGI(TAG,
+             "No operator selected (Mode: %s)",
+             enum_to_str(operator_data->mode, COPS_MODE_MAP, COPS_MODE_MAP_SIZE));
   }
 
   return ESP_OK;
