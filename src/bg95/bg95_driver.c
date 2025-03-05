@@ -197,6 +197,56 @@ esp_err_t bg95_get_current_operator(bg95_handle_t* handle, cops_operator_data_t*
   return ESP_OK;
 }
 
+esp_err_t bg95_define_pdp_context(bg95_handle_t*     handle,
+                                  uint8_t            cid,
+                                  cgdcont_pdp_type_t pdp_type,
+                                  const char*        apn)
+{
+  if (handle == NULL || apn == NULL || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  /* Validate CID range (1-15 as per specification) */
+  if (cid < 1 || cid > 15)
+  {
+    ESP_LOGE(TAG, "Invalid CID: %d (must be 1-15)", cid);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  /* Create write parameters with required fields */
+  cgdcont_write_params_t write_params;
+  memset(&write_params, 0, sizeof(cgdcont_write_params_t));
+
+  /* Set the fields and present flags */
+  write_params.cid      = cid;
+  write_params.pdp_type = pdp_type;
+  strncpy(write_params.apn, apn, sizeof(write_params.apn) - 1);
+  write_params.apn[sizeof(write_params.apn) - 1] = '\0';
+
+  /* Set present flags */
+  write_params.present.has_cid      = true;
+  write_params.present.has_pdp_type = true;
+  write_params.present.has_apn      = true;
+
+  /* Send the command */
+  ESP_LOGI(
+      TAG, "Defining PDP context: CID=%d, PDP_TYPE=%d, APN=%s", cid, pdp_type, write_params.apn);
+
+  esp_err_t err = at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_CGDCONT, AT_CMD_TYPE_WRITE, &write_params, NULL);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to define PDP context: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  ESP_LOGI(TAG, "Successfully defined PDP context (CID=%d, APN=%s)", cid, apn);
+  return ESP_OK;
+}
+
 esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
 {
   esp_err_t err;

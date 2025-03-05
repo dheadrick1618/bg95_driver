@@ -1,4 +1,5 @@
 #pragma once
+#include "at_cmd_cgdcont.h"
 #include "at_cmd_cops.h"
 #include "at_cmd_cpin.h"
 #include "at_cmd_handler.h"
@@ -63,6 +64,26 @@ esp_err_t bg95_get_signal_quality_dbm(bg95_handle_t* handle, int16_t* rssi_dbm);
 //                                                    csq_test_response_t* supported_values);
 //
 // // ---------------------- PACKET DOMAIN CMDS -----------------------------
+// CGDCONT - Define PDP context
+// Typically only the PDP type and the APN are provided by the user. Use the 'extended' version of
+// the fxn if other paramaters must be defined
+/**
+ * @brief Define PDP context using the CGDCONT AT command
+ *
+ * @param handle Pointer to the BG95 driver handle
+ * @param cid PDP context identifier (1-15)
+ * @param pdp_type PDP type (e.g., CGDCONT_PDP_TYPE_IP)
+ * @param apn Access Point Name string
+ * @return esp_err_t ESP_OK on success, appropriate error code otherwise
+ */
+esp_err_t bg95_define_pdp_context(bg95_handle_t*     handle,
+                                  uint8_t            cid,
+                                  cgdcont_pdp_type_t pdp_type,
+                                  const char*        apn);
+
+esp_err_t bg95_define_pdp_context_extended(bg95_handle_t*               handle,
+                                           const cgdcont_pdp_context_t* pdp_context);
+
 // // CGATT  - PS attach or detach
 // esp_err_t bg95_attach_to_ps_domain(bg95_handle_t* handle); // no other args needed, these
 // just send

@@ -43,19 +43,27 @@ static esp_err_t format_write_type_command(const char*          cmd_name,
                                            char*                buffer,
                                            size_t               buffer_size)
 {
-  int written = snprintf(buffer, buffer_size, "AT+%s=", cmd_name);
+  int written = snprintf(buffer, buffer_size, "AT+%s", cmd_name);
   if (written < 0 || written >= buffer_size)
   {
     return ESP_FAIL;
   }
 
-  // Format parameters
-  int param_len = formatter(params, buffer + written, buffer_size - written);
-  if (param_len < 0 || param_len >= (buffer_size - written))
+  // Format parameters - but don't overwrite what we've written
+  char      param_buffer[256] = {0};
+  esp_err_t err               = formatter(params, param_buffer, sizeof(param_buffer));
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+
+  // Append parameters (which already include the '=')
+  int params_written = snprintf(buffer + written, buffer_size - written, "%s", param_buffer);
+  if (params_written < 0 || params_written >= (buffer_size - written))
   {
     return ESP_FAIL;
   }
-  written += param_len;
+  written += params_written;
 
   // Add terminator
   int terminator_len = snprintf(buffer + written, buffer_size - written, "\r\n");
