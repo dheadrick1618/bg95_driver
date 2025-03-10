@@ -22,6 +22,9 @@ esp_err_t bg95_init(bg95_handle_t* handle, bg95_uart_interface_t* uart);
 // free handle pointer
 esp_err_t bg95_deinit(bg95_handle_t* handle);
 
+// call CFUN 0 , then CFUN 1,  this is typically for settings to take place
+esp_err_t bg95_soft_restart(bg95_handle_t* handle);
+
 // HIGH LEVEL fxn called by user - this calls a sequence of AT CMDS to connect to network bearer
 esp_err_t bg95_connect_to_network(bg95_handle_t* handle);
 
@@ -91,7 +94,7 @@ esp_err_t bg95_define_pdp_context_extended(bg95_handle_t*               handle,
 //                                                            1
 // esp_err_t bg95_detach_from_ps_domain(bg95_handle_t* handle);
 // esp_err_t bg95_get_ps_attached_state(bg95_handle_t* handle, cgatt_read_params_t* state);
-//
+
 // // ---------------------------- MQTT CMDS ----------------------------------
 // // QMTOPEN
 // esp_err_t bg95_mqtt_network_conn_get_status(bg95_handle_t*           handle,

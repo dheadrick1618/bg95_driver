@@ -1,5 +1,6 @@
 #include "bg95_driver.h"
 
+#include "at_cmd_cfun.h"
 #include "at_cmd_cops.h"
 #include "at_cmd_csq.h"
 #include "at_cmd_handler.h"
@@ -49,6 +50,41 @@ esp_err_t bg95_deinit(bg95_handle_t* handle)
     return ESP_ERR_INVALID_ARG;
   }
   free(handle);
+  return ESP_OK;
+}
+
+esp_err_t bg95_soft_restart(bg95_handle_t* handle)
+{
+  if (NULL == handle)
+  {
+    ESP_LOGE(TAG, "Invalid arg provided");
+    return ESP_ERR_INVALID_ARG;
+  }
+  esp_err_t err;
+
+  cfun_write_params_t write_params;
+  memset(&write_params, 0, sizeof(cfun_write_params_t));
+
+  write_params.fun_type = 0;
+
+  err = at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_CFUN, AT_CMD_TYPE_WRITE, &write_params, NULL);
+  if (err != ESP_OK)
+  {
+    return ESP_FAIL;
+  }
+  vTaskDelay(100);
+
+  write_params.fun_type = 1;
+
+  err = at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_CFUN, AT_CMD_TYPE_WRITE, &write_params, NULL);
+  if (err != ESP_OK)
+  {
+    return ESP_FAIL;
+  }
+  vTaskDelay(100);
+
   return ESP_OK;
 }
 
@@ -250,7 +286,7 @@ esp_err_t bg95_define_pdp_context(bg95_handle_t*     handle,
 esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
 {
   esp_err_t err;
-  // Check SIM card status
+  // Check SIM card status (AT+CPIN)
   // -----------------------------------------------------------
   cpin_status_t sim_card_status;
   err = bg95_get_sim_card_status(handle, &sim_card_status);
@@ -268,6 +304,7 @@ esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
 
   // Define PDP context with your carriers APN (AT+CGDCONT)
   // -----------------------------------------------------------
+  // AT+CFUN=0, AT+CFUN=1, soft restart needed for setting to take place
 
   // Activate PDP context (AT+CGACT)
   // -----------------------------------------------------------
@@ -275,7 +312,7 @@ esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
   // Verify IP address assignment (AT+CGPADDR)
   // -----------------------------------------------------------
 
-  // Check network registration status (AT+CREG)
+  // Check network registration status (AT+CEREG)  (CREG is for 2G)
   // -----------------------------------------------------------
 
   return ESP_OK;

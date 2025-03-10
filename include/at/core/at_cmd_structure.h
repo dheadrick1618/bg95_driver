@@ -14,8 +14,9 @@
 // #define EXECUTE_CMD(cmd) AT_PREFIX cmd AT_SUFFIX
 //------
 
-// NOTE: Macro for explicitly defining AT command types that are NOT implemented
+// NOTE: Macro for explicitly defining AT command types that do NOT exist or are NOT implemented
 #define AT_CMD_TYPE_NOT_IMPLEMENTED {.parser = NULL, .formatter = NULL}
+#define AT_CMD_TYPE_DOES_NOT_EXIST {.parser = NULL, .formatter = NULL}
 
 #define AT_CMD_MAX_RESPONSE_LEN 2048
 #define AT_CMD_MAX_CMD_LEN 256

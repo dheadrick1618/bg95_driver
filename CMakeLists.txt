@@ -9,7 +9,7 @@ idf_component_register(
         "src/bg95/bg95_uart_mock_interface.c" 
         "src/enum_utils.c"
         #### -- Commands --- ####
-        # "src/at/cmd/general"
+        "src/at/cmd/general/at_cmd_cfun.c"
         # "src/at/cmd/mqtt"
         "src/at/cmd/network_service/at_cmd_csq.c"
         "src/at/cmd/network_service/at_cmd_cops.c"
@@ -18,7 +18,7 @@ idf_component_register(
     INCLUDE_DIRS 
         "include"
         "include/at"
-        # "include/at/cmd/general"
+        "include/at/cmd/general"
         # "include/at/cmd/hardware_related"
         # "include/at/cmd/mqtt"
         "include/at/cmd/network_service"
