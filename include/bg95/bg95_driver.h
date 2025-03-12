@@ -95,6 +95,15 @@ esp_err_t bg95_define_pdp_context_extended(bg95_handle_t*               handle,
 // esp_err_t bg95_detach_from_ps_domain(bg95_handle_t* handle);
 // esp_err_t bg95_get_ps_attached_state(bg95_handle_t* handle, cgatt_read_params_t* state);
 
+esp_err_t bg95_activate_pdp_context(bg95_handle_t* handle, const int cid);
+
+esp_err_t bg95_is_pdp_context_active(bg95_handle_t* handle, uint8_t cid, bool* is_active);
+
+esp_err_t bg95_get_pdp_address_for_cid(bg95_handle_t* handle,
+                                       uint8_t        cid,
+                                       char*          address,
+                                       size_t         address_size);
+
 // // ---------------------------- MQTT CMDS ----------------------------------
 // // QMTOPEN
 // esp_err_t bg95_mqtt_network_conn_get_status(bg95_handle_t*           handle,

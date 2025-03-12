@@ -1,6 +1,8 @@
 #include "bg95_driver.h"
 
 #include "at_cmd_cfun.h"
+#include "at_cmd_cgact.h"
+#include "at_cmd_cgpaddr.h"
 #include "at_cmd_cops.h"
 #include "at_cmd_csq.h"
 #include "at_cmd_handler.h"
@@ -283,6 +285,127 @@ esp_err_t bg95_define_pdp_context(bg95_handle_t*     handle,
   return ESP_OK;
 }
 
+esp_err_t bg95_activate_pdp_context(bg95_handle_t* handle, const int cid)
+{
+
+  if (handle == NULL || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  cgact_write_params_t write_params;
+  memset(&write_params, 0, sizeof(cgact_write_params_t));
+
+  write_params.cid   = cid;
+  write_params.state = CGACT_STATE_ACTIVATED;
+
+  return at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_CGACT, AT_CMD_TYPE_WRITE, &write_params, NULL);
+}
+
+esp_err_t bg95_is_pdp_context_active(bg95_handle_t* handle, uint8_t cid, bool* is_active)
+{
+  if (NULL == handle || NULL == is_active)
+  {
+    ESP_LOGE(TAG, "Invalid arguments");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Initialize output
+  *is_active = false;
+
+  // Create response structure
+  cgact_read_response_t response = {0};
+
+  // Send CGACT read command
+  esp_err_t err = at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_CGACT, AT_CMD_TYPE_READ, NULL, &response);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to get PDP context activation status: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // Search for the specified CID
+  for (int i = 0; i < response.num_contexts; i++)
+  {
+    if (response.contexts[i].cid == cid)
+    {
+      *is_active = (response.contexts[i].state == CGACT_STATE_ACTIVATED);
+      ESP_LOGI(TAG, "PDP context %d is %s", cid, *is_active ? "active" : "inactive");
+      return ESP_OK;
+    }
+  }
+
+  // CID not found in response
+  ESP_LOGW(TAG, "PDP context %d not found in CGACT response", cid);
+  return ESP_ERR_NOT_FOUND;
+}
+
+esp_err_t
+bg95_get_pdp_address_for_cid(bg95_handle_t* handle, uint8_t cid, char* address, size_t address_size)
+{
+  if (NULL == handle || NULL == address || address_size == 0)
+  {
+    ESP_LOGE(TAG, "Invalid arguments");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Validate CID range
+  if (cid < CGPADDR_CID_RANGE_MIN_VALUE || cid > CGPADDR_CID_RANGE_MAX_VALUE)
+  {
+    ESP_LOGE(TAG, "Invalid CID: %d (must be 1-15)", cid);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Initialize output
+  address[0] = '\0';
+
+  // Create command parameters
+  cgpaddr_write_params_t params = {.cid = cid};
+
+  // Create response structure
+  cgpaddr_write_response_t response = {0};
+
+  // Send CGPADDR write command
+  esp_err_t err = at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_CGPADDR, AT_CMD_TYPE_WRITE, &params, &response);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to get PDP address for CID %d: %s", cid, esp_err_to_name(err));
+    return err;
+  }
+
+  // Verify that the CID in response matches requested CID
+  if (response.cid != cid)
+  {
+    ESP_LOGE(TAG, "Response CID (%d) doesn't match requested CID (%d)", response.cid, cid);
+    return ESP_ERR_INVALID_RESPONSE;
+  }
+
+  // Check if an address was returned
+  if (response.address[0] == '\0')
+  {
+    ESP_LOGW(TAG, "No PDP address available for CID %d", cid);
+    return ESP_ERR_NOT_FOUND;
+  }
+
+  // Copy address to output buffer
+  if (strlen(response.address) >= address_size)
+  {
+    ESP_LOGW(TAG, "Address buffer too small, truncating result");
+  }
+
+  strncpy(address, response.address, address_size - 1);
+  address[address_size - 1] = '\0'; // Ensure null termination
+
+  ESP_LOGI(TAG, "PDP address for CID %d: %s", cid, address);
+  return ESP_OK;
+}
+
 esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
 {
   esp_err_t err;
@@ -304,7 +427,9 @@ esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
 
   // Define PDP context with your carriers APN (AT+CGDCONT)
   // -----------------------------------------------------------
-  // AT+CFUN=0, AT+CFUN=1, soft restart needed for setting to take place
+
+  // Soft restart needed for setting to take place (AT+CFUN=0, AT+CFUN=1)
+  // -----------------------------------------------------------
 
   // Activate PDP context (AT+CGACT)
   // -----------------------------------------------------------
