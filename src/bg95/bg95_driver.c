@@ -2,10 +2,12 @@
 
 #include "at_cmd_cfun.h"
 #include "at_cmd_cgact.h"
+#include "at_cmd_cgdcont.h"
 #include "at_cmd_cgpaddr.h"
 #include "at_cmd_cops.h"
 #include "at_cmd_csq.h"
 #include "at_cmd_handler.h"
+#include "at_cmd_qmtopen.h"
 #include "at_cmd_structure.h"
 
 #include <esp_err.h>
@@ -415,31 +417,81 @@ esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
   err = bg95_get_sim_card_status(handle, &sim_card_status);
   if (err != ESP_OK)
   {
-    ESP_LOGE(TAG, "Failed to get PIN status: %d", err);
-    return ESP_FAIL;
+    ESP_LOGE(TAG, "Failed to get PIN status: %s", esp_err_to_name(err));
+    return err;
   }
 
   // Check signal quality (AT+CSQ)
   // -----------------------------------------------------------
+  int16_t rssi_dbm;
+  err = bg95_get_signal_quality_dbm(handle, &rssi_dbm);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to check signal quality: %s", esp_err_to_name(err));
+    return err;
+  }
 
   // Check available operators list (AT+COPS)
   // -----------------------------------------------------------
+  cops_operator_data_t operator_data;
+  err = bg95_get_current_operator(handle, &operator_data);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to get current operator: %s", esp_err_to_name(err));
+    return err;
+  }
 
   // Define PDP context with your carriers APN (AT+CGDCONT)
   // -----------------------------------------------------------
+  int                cid      = 1;
+  cgdcont_pdp_type_t pdp_type = CGDCONT_PDP_TYPE_IPV4V6;
+  const char*        apn      = "simbase"; // Use 'simbase' as the APN
+  err                         = bg95_define_pdp_context(handle, cid, pdp_type, apn);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(
+        TAG, "Failed to define PDP context (set cid, pdp type, apn): %s", esp_err_to_name(err));
+    return err;
+  }
 
   // Soft restart needed for setting to take place (AT+CFUN=0, AT+CFUN=1)
   // -----------------------------------------------------------
+  err = bg95_soft_restart(handle);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to soft restart BG95 %s", esp_err_to_name(err));
+    return err;
+  }
 
   // Activate PDP context (AT+CGACT)
   // -----------------------------------------------------------
+  err = bg95_activate_pdp_context(handle, cid);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(
+        TAG, "Failed to activate PDP context for cid: %d, error: %s", cid, esp_err_to_name(err));
+    return err;
+  }
 
   // Verify IP address assignment (AT+CGPADDR)
   // -----------------------------------------------------------
+  char ip_address[CGPADDR_ADDRESS_MAX_CHARS];
+  err = bg95_get_pdp_address_for_cid(handle, cid, ip_address, sizeof(ip_address));
+  // if (err == ESP_OK)
+  // {
+  //   ESP_LOGI(TAG, "PDP context %d assigned IP address: %s", cid, ip_address);
+  // }
+  if (err != ESP_OK)
+  {
+
+    ESP_LOGI(TAG, "Failed to get PDP context address: %s", esp_err_to_name(err));
+    return err;
+  }
 
   // Check network registration status (AT+CEREG)  (CREG is for 2G)
   // -----------------------------------------------------------
 
+  ESP_LOGI(TAG, "Successfully connected to network");
   return ESP_OK;
 }
 
@@ -1326,240 +1378,134 @@ esp_err_t bg95_mqtt_config_query_recv_mode(bg95_handle_t*                     ha
   return ESP_OK;
 }
 
-// esp_err_t bg95_mqtt_config_set_session(bg95_handle_t*                   handle,
-//                                        uint8_t                          client_idx,
-//                                        qmtcfg_clean_session_t           clean_session,
-//                                        qmtcfg_write_session_response_t* response)
-// {
-//   if (NULL == handle || !handle->initialized)
-//   {
-//     ESP_LOGE(TAG, "Invalid handle or driver not initialized");
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   if (client_idx > 5)
-//   {
-//     ESP_LOGE(TAG, "Invalid client_idx: %d (must be 0-5)", client_idx);
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   if (clean_session != QMTCFG_CLEAN_SESSION_DISABLE && clean_session !=
-//   QMTCFG_CLEAN_SESSION_ENABLE)
-//   {
-//     ESP_LOGE(TAG, "Invalid clean session value: %d", clean_session);
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   qmtcfg_write_params_t write_params                    = {0};
-//   write_params.type                                     = QMTCFG_TYPE_SESSION;
-//   write_params.params.session.client_idx                = client_idx;
-//   write_params.params.session.clean_session             = clean_session;
-//   write_params.params.session.present.has_clean_session = true;
-//
-//   qmtcfg_write_response_t write_response = {0};
-//
-//   esp_err_t err = at_cmd_handler_send_and_receive_cmd(&handle->at_handler,
-//                                                       &AT_CMD_QMTCFG,
-//                                                       AT_CMD_TYPE_WRITE,
-//                                                       &write_params,
-//                                                       response ? &write_response : NULL);
-//
-//   if (err != ESP_OK)
-//   {
-//     ESP_LOGE(TAG, "Failed to set MQTT session type: %s", esp_err_to_name(err));
-//     return err;
-//   }
-//
-//   if (response)
-//   {
-//     *response = write_response.response.session;
-//   }
-//
-//   ESP_LOGI(
-//       TAG, "Successfully set MQTT session type to %d for client %d", clean_session, client_idx);
-//   return ESP_OK;
-// }
+// Get current MQTT network connection status
+esp_err_t bg95_mqtt_network_open_status(bg95_handle_t*           handle,
+                                        uint8_t                  client_idx,
+                                        qmtopen_read_response_t* status)
+{
+  if (NULL == handle || NULL == status || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
 
-//////////////////////////////////////////
+  if (client_idx > QMTOPEN_CLIENT_IDX_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid client_idx: %d (must be 0-%d)", client_idx, QMTOPEN_CLIENT_IDX_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
 
-// esp_err_t bg95_get_available_operators(bg95_handle_t* handle, cops_test_response_t* operators)
-// {
-//   if (!handle || !operators || !handle->initialized)
-//   {
-//     ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   ESP_LOGI(TAG, "Creating response structure");
-//   at_cmd_response_t response = {.parsed_data  = operators,
-//                                 .raw_response = NULL,
-//                                 .response_len = 0,
-//                                 .cmd_type     = AT_CMD_TYPE_TEST,
-//                                 .status       = ESP_OK};
-//
-//   ESP_LOGI(TAG, "Sending command to handler");
-//   esp_err_t err = at_cmd_handler_send_and_receive_cmd(&handle->at_handler,
-//                                                       &AT_CMD_COPS,
-//                                                       AT_CMD_TYPE_TEST,
-//                                                       NULL, // No params for TEST command
-//                                                       &response);
-//
-//   ESP_LOGI(TAG, "Command handler returned: %d", err);
-//   return err;
-// }
-//
-// //-------------------------------------------------------------------------------------------------
-// //-------------------------------------------------------------------------------------------------
-//
-// esp_err_t bg95_get_pin_status(bg95_handle_t* handle, cpin_read_response_t* status)
-// {
-//   if (!handle || !status || !handle->initialized)
-//   {
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   at_cmd_response_t response = {.parsed_data = status};
-//
-//   return at_cmd_handler_send_and_receive_cmd(
-//       &handle->at_handler, &AT_CMD_CPIN, AT_CMD_TYPE_READ, NULL, &response);
-// }
-//
-// //-------------------------------------------------------------------------------------------------
-// //-------------------------------------------------------------------------------------------------
-//
-// esp_err_t bg95_get_network_registration(bg95_handle_t* handle, creg_read_response_t* status)
-// {
-//   if (!handle || !status || !handle->initialized)
-//   {
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   at_cmd_response_t response = {.parsed_data = status};
-//
-//   return at_cmd_handler_send_and_receive_cmd(
-//       &handle->at_handler, &AT_CMD_CREG, AT_CMD_TYPE_READ, NULL, &response);
-// }
-//
-// // TODO: this
-// //  esp_err_t bg95_set_network_registration_mode(bg95_handle_t* handle, uint8_t mode) {
-// //      if (!handle || !handle->initialized || mode > 2) {
-// //          return ESP_ERR_INVALID_ARG;
-// //      }
-// //
-// //      creg_write_params_t params = {
-// //          .n = mode
-// //      };
-// //
-// //      at_cmd_response_t response = {0};
-// //
-// //      return at_cmd_handler_send_and_receive_cmd(
-// //          &handle->at_handler,
-// //          &AT_CMD_CREG,
-// //          AT_CMD_TYPE_WRITE,
-// //          &params,
-// //          &response
-// //      );
-// //  }
-//
-// esp_err_t bg95_get_supported_registration_modes(bg95_handle_t*        handle,
-//                                                 creg_test_response_t* supported_modes)
-// {
-//   if (!handle || !supported_modes || !handle->initialized)
-//   {
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   at_cmd_response_t response = {.parsed_data = supported_modes};
-//
-//   return at_cmd_handler_send_and_receive_cmd(
-//       &handle->at_handler, &AT_CMD_CREG, AT_CMD_TYPE_TEST, NULL, &response);
-// }
-//
-// //-------------------------------------------------------------------------------------------------
-// //-------------------------------------------------------------------------------------------------
-//
-// esp_err_t bg95_get_signal_quality(bg95_handle_t* handle, csq_response_t* signal_quality)
-// {
-//   if (!handle || !signal_quality || !handle->initialized)
-//   {
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   at_cmd_response_t response = {.parsed_data = signal_quality};
-//
-//   return at_cmd_handler_send_and_receive_cmd(
-//       &handle->at_handler, &AT_CMD_CSQ, AT_CMD_TYPE_EXECUTE, NULL, &response);
-// }
-//
-// esp_err_t bg95_get_supported_signal_quality_values(bg95_handle_t*       handle,
-//                                                    csq_test_response_t* supported_values)
-// {
-//   if (!handle || !supported_values || !handle->initialized)
-//   {
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   at_cmd_response_t response = {.parsed_data = supported_values};
-//
-//   return at_cmd_handler_send_and_receive_cmd(
-//       &handle->at_handler, &AT_CMD_CSQ, AT_CMD_TYPE_TEST, NULL, &response);
-// }
-//
-// //-------------------------------------------------------------------------------------------------
-// //-------------------------------------------------------------------------------------------------
-//
-// esp_err_t bg95_get_ps_attached_state(bg95_handle_t* handle, cgatt_read_params_t* state)
-// {
-//   if ((NULL == handle) || (NULL == state))
-//   {
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   at_cmd_response_t response = {.parsed_data = state};
-//
-//   return at_cmd_handler_send_and_receive_cmd(
-//       &handle->at_handler, &AT_CMD_CGATT, AT_CMD_TYPE_READ, NULL, &response);
-// }
-//
-// esp_err_t bg95_mqtt_network_conn_get_status(bg95_handle_t*           handle,
-//                                             qmtopen_read_response_t* network_conn_response)
-// {
-//   if ((NULL == handle) || (NULL == network_conn_response))
-//   {
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   at_cmd_response_t response = {.parsed_data = network_conn_response};
-//
-//   return at_cmd_handler_send_and_receive_cmd(
-//       &handle->at_handler, &AT_CMD_QMTOPEN, AT_CMD_TYPE_READ, NULL, &response);
-// }
-//
-// esp_err_t bg95_mqtt_open_network_conn(bg95_handle_t*          handle,
-//                                       qmtopen_write_params_t* mqtt_conn_params,
-//                                       at_cmd_response_t*      mqtt_response_to_conn)
-// { // pass client id, broker url, and port num
-//
-//   if ((NULL == handle) || (NULL == mqtt_conn_params))
-//   {
-//     return ESP_ERR_INVALID_ARG;
-//   }
-//
-//   ESP_LOGI(TAG,
-//            "MQTT Write params BEFORE call: client_id=%u, host=%s, port=%u",
-//            mqtt_conn_params->client_id,
-//            mqtt_conn_params->host_name,
-//            mqtt_conn_params->port);
-//
-//   at_cmd_response_t response = {.parsed_data = mqtt_response_to_conn};
-//
-//   esp_err_t err = at_cmd_handler_send_and_receive_cmd(
-//       &handle->at_handler, &AT_CMD_QMTOPEN, AT_CMD_TYPE_WRITE, &mqtt_conn_params, &response);
-//
-//   if (err != ESP_OK || mqtt_response_to_conn->status != ESP_OK)
-//   {
-//     ESP_LOGE(TAG, "Failed to open mqtt network conn: %d", err);
-//     return err;
-//   }
-//   return ESP_OK;
-// }
+  // Send read command (AT+QMTOPEN?) to get current connections
+  esp_err_t err = at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_QMTOPEN, AT_CMD_TYPE_READ, NULL, status);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to get MQTT network connection status: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // Check if we got info for the requested client_idx
+  if (!status->present.has_client_idx || status->client_idx != client_idx)
+  {
+    ESP_LOGW(TAG, "No connection info found for MQTT client %d", client_idx);
+    return ESP_ERR_NOT_FOUND;
+  }
+
+  ESP_LOGI(TAG,
+           "MQTT client %d connected to %s:%d",
+           status->client_idx,
+           status->host_name,
+           status->port);
+
+  return ESP_OK;
+}
+
+// Open a network connection for MQTT client
+esp_err_t bg95_mqtt_open_network(bg95_handle_t*            handle,
+                                 uint8_t                   client_idx,
+                                 const char*               host_name,
+                                 uint16_t                  port,
+                                 qmtopen_write_response_t* response)
+{
+  if (NULL == handle || NULL == host_name || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (client_idx > QMTOPEN_CLIENT_IDX_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid client_idx: %d (must be 0-%d)", client_idx, QMTOPEN_CLIENT_IDX_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (port > QMTOPEN_PORT_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid port: %d (must be 0-%d)", port, QMTOPEN_PORT_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (strlen(host_name) > QMTOPEN_HOST_NAME_MAX_SIZE)
+  {
+    ESP_LOGE(TAG, "Host name too long (max %d chars)", QMTOPEN_HOST_NAME_MAX_SIZE);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Prepare write parameters
+  qmtopen_write_params_t params = {.client_idx = client_idx, .port = port};
+  strncpy(params.host_name, host_name, sizeof(params.host_name) - 1);
+  params.host_name[sizeof(params.host_name) - 1] = '\0'; // Ensure null termination
+
+  ESP_LOGI(
+      TAG, "Opening MQTT network connection for client %d to %s:%d", client_idx, host_name, port);
+
+  // Send the command
+  qmtopen_write_response_t local_response = {0};
+  esp_err_t                err            = at_cmd_handler_send_and_receive_cmd(&handle->at_handler,
+                                                      &AT_CMD_QMTOPEN,
+                                                      AT_CMD_TYPE_WRITE,
+                                                      &params,
+                                                      response ? response : &local_response);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to send MQTT open network command: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // If we got a result code in the immediate response, check if it was successful
+  if ((response && response->present.has_result) ||
+      (!response && local_response.present.has_result))
+  {
+    qmtopen_result_t result = response ? response->result : local_response.result;
+
+    if (result != QMTOPEN_RESULT_OPEN_SUCCESS)
+    {
+      ESP_LOGE(TAG,
+               "MQTT open network failed with result: %d (%s)",
+               result,
+               enum_to_str(result, QMTOPEN_RESULT_MAP, QMTOPEN_RESULT_MAP_SIZE));
+      return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "MQTT network connection opened successfully for client %d", client_idx);
+  }
+  else
+  {
+    // If no result code in the immediate response, that's expected
+    // The URC with the result will come later, the caller needs to wait for it
+    ESP_LOGI(TAG, "MQTT open network command sent successfully, waiting for connection result");
+  }
+
+  return ESP_OK;
+}
+
+// Close a network connection for MQTT client
+esp_err_t bg95_mqtt_close_network(bg95_handle_t* handle, uint8_t client_idx)
+{
+  // This would be implemented with AT+QMTCLOSE command
+  // For now, we'll just return an error since the QMTCLOSE command hasn't been implemented yet
+  ESP_LOGE(TAG, "bg95_mqtt_close_network not implemented yet");
+  return ESP_ERR_NOT_SUPPORTED;
+}

@@ -5,6 +5,7 @@
 #include "at_cmd_handler.h"
 #include "at_cmd_qmtcfg.h"
 // #include "at_cmds.h"
+#include "at_cmd_qmtopen.h"
 #include "bg95_uart_interface.h"
 
 #include <esp_err.h>
@@ -23,6 +24,21 @@ esp_err_t bg95_init(bg95_handle_t* handle, bg95_uart_interface_t* uart);
 // free handle pointer
 esp_err_t bg95_deinit(bg95_handle_t* handle);
 
+// As per the hardware design guide v1.6, the module can be turned on by driving the PWRKEY pin low
+// for 500-1000ms
+// TODO: Implement this
+esp_err_t bg95_turn_module_on(bg95_handle_t* handle);
+
+// TODO: this
+//  AT+QPOWD  cmd  can be used to turn module off
+esp_err_t bg95_turn_module_off_using_at_cmd(bg95_handle_t* handle);
+
+// TODO: THIS
+//  The module should attempt to be turned off typically with the AT cmd, but if its not responding,
+//  holding the PWRKEY pin low for 650 - 1500ms then releasing it, will put the module in power-down
+//  procedure.
+esp_err_t bg95_turn_module_off_using_pwrkey(bg95_handle_t* handle);
+
 // call CFUN 0 , then CFUN 1,  this is typically for settings to take place
 esp_err_t bg95_soft_restart(bg95_handle_t* handle);
 
@@ -38,20 +54,7 @@ esp_err_t bg95_get_sim_card_status(bg95_handle_t* handle, cpin_status_t* cpin_st
 // esp_err_t bg95_enter_pin(bg95_handle_t* handle, const char* pin);
 
 // -------------------- NETWORK SERVICE CMDS ---------------------------
-// CREG - Network Registration Status
-// esp_err_t bg95_get_network_registration(bg95_handle_t* handle, creg_read_response_t* status);
-// // esp_err_t bg95_set_network_registration_mode(bg95_handle_t* handle, uint8_t mode);
-// esp_err_t bg95_get_supported_registration_modes(bg95_handle_t*        handle,
-//                                                 creg_test_response_t* supported_modes);
-//
 // // COPS - Operator Selector
-/**
- * @brief Get the current selected network operator
- *
- * @param handle Handle to the BG95 driver instance
- * @param operator_data Pointer to structure where operator data will be stored
- * @return esp_err_t ESP_OK on success, appropriate error code otherwise
- */
 esp_err_t bg95_get_current_operator(bg95_handle_t* handle, cops_operator_data_t* operator_data);
 // esp_err_t bg95_get_available_operators(bg95_handle_t* handle, cops_test_response_t*
 // operators);
@@ -71,15 +74,6 @@ esp_err_t bg95_get_signal_quality_dbm(bg95_handle_t* handle, int16_t* rssi_dbm);
 // CGDCONT - Define PDP context
 // Typically only the PDP type and the APN are provided by the user. Use the 'extended' version of
 // the fxn if other paramaters must be defined
-/**
- * @brief Define PDP context using the CGDCONT AT command
- *
- * @param handle Pointer to the BG95 driver handle
- * @param cid PDP context identifier (1-15)
- * @param pdp_type PDP type (e.g., CGDCONT_PDP_TYPE_IP)
- * @param apn Access Point Name string
- * @return esp_err_t ESP_OK on success, appropriate error code otherwise
- */
 esp_err_t bg95_define_pdp_context(bg95_handle_t*     handle,
                                   uint8_t            cid,
                                   cgdcont_pdp_type_t pdp_type,
@@ -87,14 +81,6 @@ esp_err_t bg95_define_pdp_context(bg95_handle_t*     handle,
 
 esp_err_t bg95_define_pdp_context_extended(bg95_handle_t*               handle,
                                            const cgdcont_pdp_context_t* pdp_context);
-
-// // CGATT  - PS attach or detach
-// esp_err_t bg95_attach_to_ps_domain(bg95_handle_t* handle); // no other args needed, these
-// just send
-//                                                            // write cmd with state 0 or state
-//                                                            1
-// esp_err_t bg95_detach_from_ps_domain(bg95_handle_t* handle);
-// esp_err_t bg95_get_ps_attached_state(bg95_handle_t* handle, cgatt_read_params_t* state);
 
 esp_err_t bg95_activate_pdp_context(bg95_handle_t* handle, const int cid);
 
@@ -170,8 +156,17 @@ esp_err_t bg95_mqtt_config_query_recv_mode(bg95_handle_t*                     ha
                                            qmtcfg_write_recv_mode_response_t* response);
 
 // // QMTOPEN
-// esp_err_t bg95_mqtt_network_conn_get_status(bg95_handle_t*           handle,
-//                                             qmtopen_read_response_t* network_conn_response);
-// esp_err_t bg95_mqtt_open_network_conn(bg95_handle_t*          handle,
-//                                       qmtopen_write_params_t* mqtt_conn_params,
-//                                       at_cmd_response_t*      mqtt_response_to_conn);
+// Get current MQTT network connection status
+esp_err_t bg95_mqtt_network_open_status(bg95_handle_t*           handle,
+                                        uint8_t                  client_idx,
+                                        qmtopen_read_response_t* status);
+
+// Open a network connection for MQTT client
+esp_err_t bg95_mqtt_open_network(bg95_handle_t*            handle,
+                                 uint8_t                   client_idx,
+                                 const char*               host_name,
+                                 uint16_t                  port,
+                                 qmtopen_write_response_t* response);
+
+// Close a network connection for MQTT client
+esp_err_t bg95_mqtt_close_network(bg95_handle_t* handle, uint8_t client_idx);

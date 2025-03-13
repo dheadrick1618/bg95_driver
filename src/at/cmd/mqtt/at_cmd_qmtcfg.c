@@ -961,5 +961,5 @@ const at_cmd_t AT_CMD_QMTCFG = {
                     [AT_CMD_TYPE_WRITE]   = {.parser    = qmtcfg_write_parser,
                                              .formatter = qmtcfg_write_formatter},
                     [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_NOT_IMPLEMENTED},
-    .timeout_ms  = 3000 // NOTE: 300ms per spec BUT I added more time just to be safe
+    .timeout_ms  = 1500 // NOTE: 300ms per spec BUT I added more time just to be safe
 };

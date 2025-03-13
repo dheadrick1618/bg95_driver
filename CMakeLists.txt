@@ -11,6 +11,7 @@ idf_component_register(
         #### -- Commands --- ####
         "src/at/cmd/general/at_cmd_cfun.c"
         "src/at/cmd/mqtt/at_cmd_qmtcfg.c"
+        "src/at/cmd/mqtt/at_cmd_qmtopen.c"
         "src/at/cmd/network_service/at_cmd_csq.c"
         "src/at/cmd/network_service/at_cmd_cops.c"
         "src/at/cmd/packet_domain/at_cmd_cgdcont.c"
