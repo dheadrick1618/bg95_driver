@@ -3,6 +3,7 @@
 #include "at_cmd_cops.h"
 #include "at_cmd_cpin.h"
 #include "at_cmd_handler.h"
+#include "at_cmd_qmtcfg.h"
 // #include "at_cmds.h"
 #include "bg95_uart_interface.h"
 
@@ -105,6 +106,69 @@ esp_err_t bg95_get_pdp_address_for_cid(bg95_handle_t* handle,
                                        size_t         address_size);
 
 // // ---------------------------- MQTT CMDS ----------------------------------
+// QMTCFG - config optional MQTT params
+esp_err_t bg95_get_mqtt_config_params(bg95_handle_t* handle, qmtcfg_test_response_t* config_params);
+
+esp_err_t bg95_mqtt_config_set_version(bg95_handle_t*                   handle,
+                                       uint8_t                          client_idx,
+                                       qmtcfg_version_t                 version,
+                                       qmtcfg_write_version_response_t* response);
+
+esp_err_t
+bg95_mqtt_config_set_pdp_context(bg95_handle_t* handle, uint8_t client_idx, uint8_t pdp_cid);
+esp_err_t bg95_mqtt_config_query_pdp_context(bg95_handle_t*                  handle,
+                                             uint8_t                         client_idx,
+                                             qmtcfg_write_pdpcid_response_t* response);
+
+esp_err_t bg95_mqtt_config_set_ssl(bg95_handle_t*    handle,
+                                   uint8_t           client_idx,
+                                   qmtcfg_ssl_mode_t ssl_enable,
+                                   uint8_t           ctx_index);
+esp_err_t bg95_mqtt_config_query_ssl(bg95_handle_t*               handle,
+                                     uint8_t                      client_idx,
+                                     qmtcfg_write_ssl_response_t* response);
+
+esp_err_t
+bg95_mqtt_config_set_keepalive(bg95_handle_t* handle, uint8_t client_idx, uint16_t keep_alive_time);
+esp_err_t bg95_mqtt_config_query_keepalive(bg95_handle_t*                     handle,
+                                           uint8_t                            client_idx,
+                                           qmtcfg_write_keepalive_response_t* response);
+
+esp_err_t bg95_mqtt_config_set_session(bg95_handle_t*         handle,
+                                       uint8_t                client_idx,
+                                       qmtcfg_clean_session_t clean_session);
+esp_err_t bg95_mqtt_config_query_session(bg95_handle_t*                   handle,
+                                         uint8_t                          client_idx,
+                                         qmtcfg_write_session_response_t* response);
+
+esp_err_t bg95_mqtt_config_set_timeout(bg95_handle_t*          handle,
+                                       uint8_t                 client_idx,
+                                       uint8_t                 pkt_timeout,
+                                       uint8_t                 retry_times,
+                                       qmtcfg_timeout_notice_t timeout_notice);
+esp_err_t bg95_mqtt_config_query_timeout(bg95_handle_t*                   handle,
+                                         uint8_t                          client_idx,
+                                         qmtcfg_write_timeout_response_t* response);
+
+esp_err_t bg95_mqtt_config_set_will(bg95_handle_t*       handle,
+                                    uint8_t              client_idx,
+                                    qmtcfg_will_flag_t   will_flag,
+                                    qmtcfg_will_qos_t    will_qos,
+                                    qmtcfg_will_retain_t will_retain,
+                                    const char*          will_topic,
+                                    const char*          will_message);
+esp_err_t bg95_mqtt_config_query_will(bg95_handle_t*                handle,
+                                      uint8_t                       client_idx,
+                                      qmtcfg_write_will_response_t* response);
+
+esp_err_t bg95_mqtt_config_set_recv_mode(bg95_handle_t*          handle,
+                                         uint8_t                 client_idx,
+                                         qmtcfg_msg_recv_mode_t  msg_recv_mode,
+                                         qmtcfg_msg_len_enable_t msg_len_enable);
+esp_err_t bg95_mqtt_config_query_recv_mode(bg95_handle_t*                     handle,
+                                           uint8_t                            client_idx,
+                                           qmtcfg_write_recv_mode_response_t* response);
+
 // // QMTOPEN
 // esp_err_t bg95_mqtt_network_conn_get_status(bg95_handle_t*           handle,
 //                                             qmtopen_read_response_t* network_conn_response);
