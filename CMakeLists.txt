@@ -10,7 +10,7 @@ idf_component_register(
         "src/enum_utils.c"
         #### -- Commands --- ####
         "src/at/cmd/general/at_cmd_cfun.c"
-        # "src/at/cmd/mqtt"
+        "src/at/cmd/mqtt/at_cmd_qmtcfg.c"
         "src/at/cmd/network_service/at_cmd_csq.c"
         "src/at/cmd/network_service/at_cmd_cops.c"
         "src/at/cmd/packet_domain/at_cmd_cgdcont.c"
@@ -22,7 +22,7 @@ idf_component_register(
         "include/at"
         "include/at/cmd/general"
         # "include/at/cmd/hardware_related"
-        # "include/at/cmd/mqtt"
+        "include/at/cmd/mqtt"
         "include/at/cmd/network_service"
         "include/at/cmd/packet_domain"
         "include/at/cmd/sim_related"
