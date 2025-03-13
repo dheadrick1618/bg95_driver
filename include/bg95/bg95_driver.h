@@ -5,6 +5,7 @@
 #include "at_cmd_handler.h"
 #include "at_cmd_qmtcfg.h"
 // #include "at_cmds.h"
+#include "at_cmd_qmtclose.h"
 #include "at_cmd_qmtopen.h"
 #include "bg95_uart_interface.h"
 
@@ -169,4 +170,6 @@ esp_err_t bg95_mqtt_open_network(bg95_handle_t*            handle,
                                  qmtopen_write_response_t* response);
 
 // Close a network connection for MQTT client
-esp_err_t bg95_mqtt_close_network(bg95_handle_t* handle, uint8_t client_idx);
+esp_err_t bg95_mqtt_close_network(bg95_handle_t*             handle,
+                                  uint8_t                    client_idx,
+                                  qmtclose_write_response_t* response);

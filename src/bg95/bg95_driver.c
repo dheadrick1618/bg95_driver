@@ -7,6 +7,7 @@
 #include "at_cmd_cops.h"
 #include "at_cmd_csq.h"
 #include "at_cmd_handler.h"
+#include "at_cmd_qmtclose.h"
 #include "at_cmd_qmtopen.h"
 #include "at_cmd_structure.h"
 
@@ -1502,10 +1503,64 @@ esp_err_t bg95_mqtt_open_network(bg95_handle_t*            handle,
 }
 
 // Close a network connection for MQTT client
-esp_err_t bg95_mqtt_close_network(bg95_handle_t* handle, uint8_t client_idx)
+esp_err_t bg95_mqtt_close_network(bg95_handle_t*             handle,
+                                  uint8_t                    client_idx,
+                                  qmtclose_write_response_t* response)
 {
-  // This would be implemented with AT+QMTCLOSE command
-  // For now, we'll just return an error since the QMTCLOSE command hasn't been implemented yet
-  ESP_LOGE(TAG, "bg95_mqtt_close_network not implemented yet");
-  return ESP_ERR_NOT_SUPPORTED;
+  if (NULL == handle || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid handle or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (client_idx > QMTCLOSE_CLIENT_IDX_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid client_idx: %d (must be 0-%d)", client_idx, QMTCLOSE_CLIENT_IDX_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Prepare write parameters
+  qmtclose_write_params_t params = {.client_idx = client_idx};
+
+  ESP_LOGI(TAG, "Closing MQTT network connection for client %d", client_idx);
+
+  // Send the command
+  qmtclose_write_response_t local_response = {0};
+  esp_err_t                 err = at_cmd_handler_send_and_receive_cmd(&handle->at_handler,
+                                                      &AT_CMD_QMTCLOSE,
+                                                      AT_CMD_TYPE_WRITE,
+                                                      &params,
+                                                      response ? response : &local_response);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to send MQTT close network command: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // If we got a result code in the immediate response, check if it was successful
+  if ((response && response->present.has_result) ||
+      (!response && local_response.present.has_result))
+  {
+    qmtclose_result_t result = response ? response->result : local_response.result;
+
+    if (result != QMTCLOSE_RESULT_CLOSE_SUCCESS)
+    {
+      ESP_LOGE(TAG,
+               "MQTT close network failed with result: %d (%s)",
+               result,
+               enum_to_str(result, QMTCLOSE_RESULT_MAP, QMTCLOSE_RESULT_MAP_SIZE));
+      return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "MQTT network connection closed successfully for client %d", client_idx);
+  }
+  else
+  {
+    // If no result code in the immediate response, that's expected
+    // The URC with the result will come later, the caller needs to wait for it
+    ESP_LOGI(TAG, "MQTT close network command sent successfully, waiting for result");
+  }
+
+  return ESP_OK;
 }
