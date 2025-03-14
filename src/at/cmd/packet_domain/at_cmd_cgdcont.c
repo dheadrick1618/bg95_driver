@@ -168,7 +168,7 @@ static esp_err_t cgdcont_read_parser(const char* response, void* parsed_data)
     }
 
     /* Validate CID range for uint8_t */
-    if (cid < 0 || cid > 255)
+    if (cid < 0 || cid > 15)
     {
       line_start = next_line + 2;
       continue;
@@ -414,7 +414,8 @@ static esp_err_t cgdcont_write_formatter(const void* params, char* buffer, size_
   int                           written      = 0;
 
   // Validate CID range
-  if (write_params->cid < 1 || write_params->cid > 15)
+  if (write_params->cid < CGDCONT_CID_RANGE_MIN_VALUE ||
+      write_params->cid > CGDCONT_CID_RANGE_MAX_VALUE)
   {
     ESP_LOGE(TAG, "Invalid CID: %d (must be 1-15)", write_params->cid);
     return ESP_ERR_INVALID_ARG;
@@ -539,6 +540,6 @@ const at_cmd_t AT_CMD_CGDCONT = {
                     // [AT_CMD_TYPE_TEST]    = {.parser = cgdcont_test_parser, .formatter = NULL},
                     [AT_CMD_TYPE_READ]    = {.parser = cgdcont_read_parser, .formatter = NULL},
                     [AT_CMD_TYPE_WRITE]   = {.parser = NULL, .formatter = cgdcont_write_formatter},
-                    [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_NOT_IMPLEMENTED},
+                    [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_DOES_NOT_EXIST},
     .timeout_ms  = 300 // 300ms per spec
 };

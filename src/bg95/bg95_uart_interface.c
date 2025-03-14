@@ -90,7 +90,7 @@ static esp_err_t uart_hw_read_impl(
   }
 
   // -------------------------------------------------------
-  //  NOTE: FOR DEBUG
+  // NOTE: FOR DEBUG
   // ESP_LOGI(TAG, "UART read: %d bytes", len);
   // if (len > 0)
   // {

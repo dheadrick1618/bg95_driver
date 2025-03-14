@@ -59,7 +59,8 @@ static esp_err_t cfun_write_formatter(const void* params, char* buffer, size_t b
 
   written = snprintf(buffer, buffer_size, "=%d", write_params->fun_type);
 
-  if (write_params->fun_type == 3 || write_params->fun_type > CFUN_FUN_TYPE_DISABLE_TX_AND_RX)
+  // Validate range of provided params
+  if (write_params->fun_type == 3 || write_params->fun_type > 4)
   {
     return ESP_ERR_INVALID_ARG;
   }

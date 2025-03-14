@@ -8,6 +8,7 @@
 #include "at_cmd_csq.h"
 #include "at_cmd_handler.h"
 #include "at_cmd_qmtclose.h"
+#include "at_cmd_qmtconn.h"
 #include "at_cmd_qmtopen.h"
 #include "at_cmd_structure.h"
 
@@ -478,19 +479,12 @@ esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
   // -----------------------------------------------------------
   char ip_address[CGPADDR_ADDRESS_MAX_CHARS];
   err = bg95_get_pdp_address_for_cid(handle, cid, ip_address, sizeof(ip_address));
-  // if (err == ESP_OK)
-  // {
-  //   ESP_LOGI(TAG, "PDP context %d assigned IP address: %s", cid, ip_address);
-  // }
   if (err != ESP_OK)
   {
 
     ESP_LOGI(TAG, "Failed to get PDP context address: %s", esp_err_to_name(err));
     return err;
   }
-
-  // Check network registration status (AT+CEREG)  (CREG is for 2G)
-  // -----------------------------------------------------------
 
   ESP_LOGI(TAG, "Successfully connected to network");
   return ESP_OK;
@@ -1560,6 +1554,228 @@ esp_err_t bg95_mqtt_close_network(bg95_handle_t*             handle,
     // If no result code in the immediate response, that's expected
     // The URC with the result will come later, the caller needs to wait for it
     ESP_LOGI(TAG, "MQTT close network command sent successfully, waiting for result");
+  }
+
+  return ESP_OK;
+}
+
+// Check the current connection state of an MQTT client
+esp_err_t bg95_mqtt_query_connection_state(bg95_handle_t*           handle,
+                                           uint8_t                  client_idx,
+                                           qmtconn_read_response_t* status)
+{
+  if (NULL == handle || NULL == status || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (client_idx > QMTCONN_CLIENT_IDX_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid client_idx: %d (must be 0-%d)", client_idx, QMTCONN_CLIENT_IDX_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Send read command (AT+QMTCONN?) to get current connection state
+  esp_err_t err = at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_QMTCONN, AT_CMD_TYPE_READ, NULL, status);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to get MQTT connection status: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // If no status returned but command succeeded, this means no client is connected
+  if (!status->present.has_client_idx || status->client_idx != client_idx)
+  {
+    ESP_LOGD(TAG, "No connection information found for MQTT client %d", client_idx);
+    return ESP_ERR_NOT_FOUND;
+  }
+
+  ESP_LOGI(TAG,
+           "MQTT client %d connection state: %d (%s)",
+           client_idx,
+           status->state,
+           enum_to_str(status->state, QMTCONN_STATE_MAP, QMTCONN_STATE_MAP_SIZE));
+
+  return ESP_OK;
+}
+
+esp_err_t bg95_mqtt_connect(bg95_handle_t*            handle,
+                            uint8_t                   client_idx,
+                            const char*               client_id_str,
+                            const char*               username,
+                            const char*               password,
+                            qmtconn_write_response_t* response)
+{
+  if (NULL == handle || NULL == client_id_str || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (client_idx > QMTCONN_CLIENT_IDX_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid client_idx: %d (must be 0-%d)", client_idx, QMTCONN_CLIENT_IDX_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (strlen(client_id_str) > QMTCONN_CLIENT_ID_MAX_SIZE)
+  {
+    ESP_LOGE(TAG, "Client ID too long (max %d chars)", QMTCONN_CLIENT_ID_MAX_SIZE);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (username != NULL && strlen(username) > QMTCONN_USERNAME_MAX_SIZE)
+  {
+    ESP_LOGE(TAG, "Username too long (max %d chars)", QMTCONN_USERNAME_MAX_SIZE);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (password != NULL && strlen(password) > QMTCONN_PASSWORD_MAX_SIZE)
+  {
+    ESP_LOGE(TAG, "Password too long (max %d chars)", QMTCONN_PASSWORD_MAX_SIZE);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Password can only be provided if username is also provided
+  if (password != NULL && username == NULL)
+  {
+    ESP_LOGE(TAG, "Cannot provide password without username");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Prepare write parameters
+  qmtconn_write_params_t params = {.client_idx = client_idx};
+  strncpy(params.client_id, client_id_str, sizeof(params.client_id) - 1);
+  params.client_id[sizeof(params.client_id) - 1] = '\0'; // Ensure null termination
+
+  if (username != NULL)
+  {
+    params.present.has_username = true;
+    strncpy(params.username, username, sizeof(params.username) - 1);
+    params.username[sizeof(params.username) - 1] = '\0'; // Ensure null termination
+
+    if (password != NULL)
+    {
+      params.present.has_password = true;
+      strncpy(params.password, password, sizeof(params.password) - 1);
+      params.password[sizeof(params.password) - 1] = '\0'; // Ensure null termination
+    }
+  }
+
+  ESP_LOGI(TAG, "Connecting MQTT client %d with client ID '%s'", client_idx, client_id_str);
+
+  // Send the command
+  qmtconn_write_response_t local_response = {0};
+  esp_err_t                err            = at_cmd_handler_send_and_receive_cmd(&handle->at_handler,
+                                                      &AT_CMD_QMTCONN,
+                                                      AT_CMD_TYPE_WRITE,
+                                                      &params,
+                                                      response ? response : &local_response);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to send MQTT connect command: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // If we got a result code in the immediate response, check if it was successful
+  if ((response && response->present.has_result) ||
+      (!response && local_response.present.has_result))
+  {
+    qmtconn_result_t result = response ? response->result : local_response.result;
+
+    if (result != QMTCONN_RESULT_SUCCESS)
+    {
+      ESP_LOGE(TAG,
+               "MQTT connect operation failed with result: %d (%s)",
+               result,
+               enum_to_str(result, QMTCONN_RESULT_MAP, QMTCONN_RESULT_MAP_SIZE));
+
+      // If we have a return code, log it for more detail
+      if ((response && response->present.has_ret_code) ||
+          (!response && local_response.present.has_ret_code))
+      {
+        qmtconn_ret_code_t ret_code = response ? response->ret_code : local_response.ret_code;
+        ESP_LOGE(TAG,
+                 "MQTT connect return code: %d (%s)",
+                 ret_code,
+                 enum_to_str(ret_code, QMTCONN_RET_CODE_MAP, QMTCONN_RET_CODE_MAP_SIZE));
+      }
+
+      return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "MQTT client %d connected successfully", client_idx);
+  }
+  else
+  {
+    // If no result code in the immediate response, that's expected
+    // The URC with the result will come later, the caller needs to wait for it
+    ESP_LOGI(TAG, "MQTT connect command sent successfully, waiting for connection result");
+  }
+
+  return ESP_OK;
+}
+
+esp_err_t
+bg95_mqtt_disconnect(bg95_handle_t* handle, uint8_t client_idx, qmtdisc_write_response_t* response)
+{
+  if (NULL == handle || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid handle or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (client_idx > QMTDISC_CLIENT_IDX_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid client_idx: %d (must be 0-%d)", client_idx, QMTDISC_CLIENT_IDX_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Prepare write parameters
+  qmtdisc_write_params_t params = {.client_idx = client_idx};
+
+  ESP_LOGI(TAG, "Disconnecting MQTT client %d from server", client_idx);
+
+  // Send the command
+  qmtdisc_write_response_t local_response = {0};
+  esp_err_t                err            = at_cmd_handler_send_and_receive_cmd(&handle->at_handler,
+                                                      &AT_CMD_QMTDISC,
+                                                      AT_CMD_TYPE_WRITE,
+                                                      &params,
+                                                      response ? response : &local_response);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to send MQTT disconnect command: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // If we got a result code in the immediate response, check if it was successful
+  if ((response && response->present.has_result) ||
+      (!response && local_response.present.has_result))
+  {
+    qmtdisc_result_t result = response ? response->result : local_response.result;
+
+    if (result != QMTDISC_RESULT_SUCCESS)
+    {
+      ESP_LOGE(TAG,
+               "MQTT disconnect failed with result: %d (%s)",
+               result,
+               enum_to_str(result, QMTDISC_RESULT_MAP, QMTDISC_RESULT_MAP_SIZE));
+      return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "MQTT client %d disconnected successfully", client_idx);
+  }
+  else
+  {
+    // If no result code in the immediate response, that's expected
+    // The URC with the result will come later, the caller needs to wait for it
+    ESP_LOGI(TAG, "MQTT disconnect command sent successfully, waiting for result");
   }
 
   return ESP_OK;

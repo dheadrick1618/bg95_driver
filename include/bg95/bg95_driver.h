@@ -6,6 +6,8 @@
 #include "at_cmd_qmtcfg.h"
 // #include "at_cmds.h"
 #include "at_cmd_qmtclose.h"
+#include "at_cmd_qmtconn.h"
+#include "at_cmd_qmtdisc.h"
 #include "at_cmd_qmtopen.h"
 #include "bg95_uart_interface.h"
 
@@ -173,3 +175,20 @@ esp_err_t bg95_mqtt_open_network(bg95_handle_t*            handle,
 esp_err_t bg95_mqtt_close_network(bg95_handle_t*             handle,
                                   uint8_t                    client_idx,
                                   qmtclose_write_response_t* response);
+
+// Check the current connection state of an MQTT client
+esp_err_t bg95_mqtt_query_connection_state(bg95_handle_t*           handle,
+                                           uint8_t                  client_idx,
+                                           qmtconn_read_response_t* status);
+
+esp_err_t bg95_mqtt_connect(bg95_handle_t*            handle,
+                            uint8_t                   client_idx,
+                            const char*               client_id_str,
+                            const char*               username,
+                            const char*               password,
+                            qmtconn_write_response_t* response);
+
+// Add to bg95_driver.h in the MQTT commands section
+// Disconnect from MQTT server but keep network connection
+esp_err_t
+bg95_mqtt_disconnect(bg95_handle_t* handle, uint8_t client_idx, qmtdisc_write_response_t* response);

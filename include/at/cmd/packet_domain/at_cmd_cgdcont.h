@@ -14,6 +14,9 @@ This Read Command returns the current settings for each defined PDP context.
 #include <stdbool.h>
 #include <stdint.h>
 
+#define CGDCONT_CID_RANGE_MIN_VALUE 1
+#define CGDCONT_CID_RANGE_MAX_VALUE 15
+
 // PDP type definitions
 typedef enum
 {

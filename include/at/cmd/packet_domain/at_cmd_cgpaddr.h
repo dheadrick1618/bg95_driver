@@ -5,7 +5,7 @@
 #include "at_cmd_structure.h"
 
 #define CGPADDR_ADDRESS_MAX_CHARS 18
-#define CGPADDR_CID_RANGE_MIN_VALUE 0
+#define CGPADDR_CID_RANGE_MIN_VALUE 1
 #define CGPADDR_CID_RANGE_MAX_VALUE 15
 
 typedef struct
