@@ -89,6 +89,19 @@ static esp_err_t uart_hw_read_impl(
     return ESP_FAIL;
   }
 
+  // -------------------------------------------------------
+  // NOTE: FOR DEBUG
+  // ESP_LOGI(TAG, "UART read: %d bytes", len);
+  // if (len > 0)
+  // {
+  //   buffer[len] = '\0';
+  //   ESP_LOGI(TAG, "UART data: %s", buffer);
+  //
+  //   // Log hex dump for debugging non-printable characters
+  //   ESP_LOG_BUFFER_HEXDUMP(TAG, buffer, len, ESP_LOG_INFO);
+  // }
+  //---------------------------------------------------------
+
   *bytes_read = len;
   buffer[len] = '\0';
   return ESP_OK;

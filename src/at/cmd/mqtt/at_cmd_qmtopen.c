@@ -1,155 +1,138 @@
+// components/bg95_driver/src/at/cmd/mqtt/at_cmd_qmtopen.c
 
-#include "mqtt/at_cmd_qmtopen.h"
+#include "at_cmd_qmtopen.h"
 
 #include "at_cmd_structure.h"
 #include "esp_err.h"
+#include "esp_log.h"
 
-#include <esp_log.h>
 #include <string.h>
 
 static const char* TAG = "AT_CMD_QMTOPEN";
 
+// Define the result code mapping array
+const enum_str_map_t QMTOPEN_RESULT_MAP[QMTOPEN_RESULT_MAP_SIZE] = {
+    {QMTOPEN_RESULT_FAILED_TO_OPEN, "Failed to open network"},
+    {QMTOPEN_RESULT_OPEN_SUCCESS, "Network opened successfully"},
+    {QMTOPEN_RESULT_WRONG_PARAMETER, "Wrong parameter"},
+    {QMTOPEN_RESULT_MQTT_ID_OCCUPIED, "MQTT client identifier is occupied"},
+    {QMTOPEN_RESULT_FAILED_ACTIVATE_PDP, "Failed to activate PDP"},
+    {QMTOPEN_RESULT_FAILED_PARSE_DOMAIN, "Failed to parse domain name"},
+    {QMTOPEN_RESULT_NETWORK_CONN_ERROR, "Network connection error"}};
+
 static esp_err_t qmtopen_read_parser(const char* response, void* parsed_data)
 {
+  if (NULL == response || NULL == parsed_data)
+  {
+    ESP_LOGE(TAG, "Invalid arguments");
+    return ESP_ERR_INVALID_ARG;
+  }
+
   qmtopen_read_response_t* read_data = (qmtopen_read_response_t*) parsed_data;
+
+  // Initialize output structure
   memset(read_data, 0, sizeof(qmtopen_read_response_t));
 
-  // Find response start
+  // Find the response start
   const char* start = strstr(response, "+QMTOPEN: ");
   if (!start)
   {
-    return ESP_ERR_INVALID_RESPONSE;
-  }
-
-  start += 10; // shift start index over to where response data begins
-
-  // uint8_t client_id;
-  int  client_id;
-  char host_name[128];
-  // uint16_t port;
-  int port;
-
-  int matched = sscanf(start, "%d,\"%127[^\"]\",%d", &client_id, host_name, &port);
-
-  if (matched == 3)
-  {
-    // validate range
-    if ((client_id < 0) || (client_id) > 5)
-    {
-      return ESP_ERR_INVALID_RESPONSE;
-    }
-    if ((port > 1) || (port > 65535))
-    {
-      return ESP_ERR_INVALID_RESPONSE;
-    }
-
-    read_data->client_id = (uint8_t) client_id;
-    strncpy(read_data->host_name, host_name, sizeof(read_data->host_name) - 1);
-    read_data->host_name[sizeof(read_data->host_name) - 1] = '\0';
-    read_data->port                                        = (uint16_t) port;
-
+    // No QMTOPEN data in response (might just be OK without data)
     return ESP_OK;
   }
 
-  // creg_read_response_t* read_data = (creg_read_response_t*)parsed_data;
-  // memset(read_data, 0, sizeof(creg_read_response_t));
-  //
-  // // Find response start
-  // const char* start = strstr(response, "+CREG: ");
-  // if (!start) {
-  //     return ESP_ERR_INVALID_RESPONSE;
-  // }
-  // start += 7;
-  //
-  // int n, stat;
-  // char lac[5] = {0}, ci[9] = {0};
-  // int act = -1;
-  //
-  // // Try to parse with all possible formats
-  // int matched = sscanf(start, "%d,%d,\"%4[^\"]\",%8[^\"]\",%d",
-  //                     &n, &stat, lac, ci, &act);
-  //
-  // if (matched >= 2) {  // At minimum need n and stat
-  //     read_data->n = n;
-  //     read_data->present.has_n = true;
-  //
-  //     if (stat >= 0 && stat < CREG_STATUS_MAX) {
-  //         read_data->status = (creg_status_t)stat;
-  //         read_data->present.has_status = true;
-  //     }
-  //
-  //     if (matched >= 3 && strlen(lac) > 0) {
-  //         strncpy(read_data->lac, lac, sizeof(read_data->lac)-1);
-  //         read_data->present.has_lac = true;
-  //     }
-  //
-  //     if (matched >= 4 && strlen(ci) > 0) {
-  //         strncpy(read_data->ci, ci, sizeof(read_data->ci)-1);
-  //         read_data->present.has_ci = true;
-  //     }
-  //
-  //     if (matched >= 5 && act >= 0) {
-  //         read_data->act = (creg_act_t)act;
-  //         read_data->present.has_act = true;
-  //     }
-  //
-  //     return ESP_OK;
-  // }
+  start += 10; // Skip "+QMTOPEN: "
 
-  return ESP_ERR_INVALID_RESPONSE;
+  // Parse client_idx, host_name, and port
+  int  client_idx, port;
+  char host_name[QMTOPEN_HOST_NAME_MAX_SIZE + 1] = {0};
+
+  // Format: +QMTOPEN: <client_idx>,<host_name>,<port>
+  int matched = sscanf(start, "%d,\"%100[^\"]\",%d", &client_idx, host_name, &port);
+
+  if (matched >= 1)
+  {
+    if (client_idx >= QMTOPEN_CLIENT_IDX_MIN && client_idx <= QMTOPEN_CLIENT_IDX_MAX)
+    {
+      read_data->client_idx             = (uint8_t) client_idx;
+      read_data->present.has_client_idx = true;
+    }
+    else
+    {
+      ESP_LOGW(TAG, "Invalid client_idx in response: %d", client_idx);
+    }
+  }
+
+  if (matched >= 2)
+  {
+    strncpy(read_data->host_name, host_name, sizeof(read_data->host_name) - 1);
+    read_data->host_name[sizeof(read_data->host_name) - 1] = '\0'; // Ensure null termination
+    read_data->present.has_host_name                       = true;
+  }
+
+  if (matched >= 3)
+  {
+    if (port >= QMTOPEN_PORT_MIN && port <= QMTOPEN_PORT_MAX)
+    {
+      read_data->port             = (uint16_t) port;
+      read_data->present.has_port = true;
+    }
+    else
+    {
+      ESP_LOGW(TAG, "Invalid port in response: %d", port);
+    }
+  }
+
+  return (matched >= 1) ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
 }
 
 static esp_err_t qmtopen_write_formatter(const void* params, char* buffer, size_t buffer_size)
 {
-  if ((NULL == params) || (NULL == buffer) || (0U == buffer_size))
+  if (NULL == params || NULL == buffer || 0 == buffer_size)
   {
-    ESP_LOGE(TAG, "Invalid formatter NULL args");
+    ESP_LOGE(TAG, "Invalid arguments");
     return ESP_ERR_INVALID_ARG;
   }
 
-  ESP_LOGI("AT_CMD_QMTOPEN", "Raw params pointer: %p", params);
   const qmtopen_write_params_t* write_params = (const qmtopen_write_params_t*) params;
-  ESP_LOGI("AT_CMD_QMTOPEN", "Write params at start: %p", write_params);
-
-  ESP_LOGI("AT_CMD_QMTOPEN",
-           "Write params: client_id=%u, host=%s, port=%u",
-           write_params->client_id,
-           write_params->host_name,
-           write_params->port);
 
   // Validate parameters
-  if (write_params->client_id > 5 || write_params->client_id < 0)
+  if (write_params->client_idx > QMTOPEN_CLIENT_IDX_MAX)
   {
-    ESP_LOGE("AT_CMD_QMTOPEN", "Invalid client_id: %d", write_params->client_id);
+    ESP_LOGE(TAG,
+             "Invalid client_idx: %d (must be 0-%d)",
+             write_params->client_idx,
+             QMTOPEN_CLIENT_IDX_MAX);
     return ESP_ERR_INVALID_ARG;
   }
 
-  if (write_params->port <= 0 || write_params->port > 65535)
+  if (write_params->port > QMTOPEN_PORT_MAX)
   {
-    ESP_LOGE("AT_CMD_QMTOPEN", "Invalid port: %d", write_params->port);
+    ESP_LOGE(TAG, "Invalid port: %d (must be 0-%d)", write_params->port, QMTOPEN_PORT_MAX);
     return ESP_ERR_INVALID_ARG;
   }
+
   if (write_params->host_name[0] == '\0')
   {
-
-    ESP_LOGE(TAG, "Invalid formatter host name arg");
+    ESP_LOGE(TAG, "Empty host name is not allowed");
     return ESP_ERR_INVALID_ARG;
   }
 
   // Format the command
-  int32_t written = snprintf(buffer,
-                             buffer_size,
-                             "=%u,\"%s\",%u",
-                             write_params->client_id,
-                             write_params->host_name,
-                             write_params->port);
+  int written = snprintf(buffer,
+                         buffer_size,
+                         "=%d,\"%s\",%d",
+                         write_params->client_idx,
+                         write_params->host_name,
+                         write_params->port);
 
-  // Ensure buffer is in a good state, even if overflow occurred
-  if ((written < 0) || ((size_t) written >= buffer_size))
+  // Check for buffer overflow
+  if (written < 0 || (size_t) written >= buffer_size)
   {
-    if (buffer_size > 0U)
+    ESP_LOGE(TAG, "Buffer too small for QMTOPEN write command");
+    if (buffer_size > 0)
     {
-      buffer[0] = '\0';
+      buffer[0] = '\0'; // Ensure null-terminated in case of overflow
     }
     return ESP_ERR_INVALID_SIZE;
   }
@@ -157,44 +140,68 @@ static esp_err_t qmtopen_write_formatter(const void* params, char* buffer, size_
   return ESP_OK;
 }
 
-// NOTE: Write command need response parser for this command - NOT JUST OK or ERROR!
 static esp_err_t qmtopen_write_parser(const char* response, void* parsed_data)
 {
-  // Check if we have both OK and the result code
-  const char* ok_pos     = strstr(response, "OK");
-  const char* result_pos = strstr(response, "+QMTOPEN: ");
-
-  if (!ok_pos || !result_pos)
+  if (NULL == response || NULL == parsed_data)
   {
-    ESP_LOGE(TAG, "Missing required response parts");
-    return ESP_FAIL;
+    ESP_LOGE(TAG, "Invalid arguments");
+    return ESP_ERR_INVALID_ARG;
   }
 
-  // Parse client_id and result
-  int client_id, result;
-  if (sscanf(result_pos + 10, "%d,%d", &client_id, &result) != 2)
+  qmtopen_write_response_t* write_resp = (qmtopen_write_response_t*) parsed_data;
+
+  // Initialize output structure
+  memset(write_resp, 0, sizeof(qmtopen_write_response_t));
+
+  // URC response format: +QMTOPEN: <client_idx>,<result>
+  const char* result_start = strstr(response, "+QMTOPEN: ");
+  if (!result_start)
   {
-    ESP_LOGE(TAG, "Failed to parse QMTOPEN response");
-    return ESP_FAIL;
+    // The response might not contain the URC yet (just the OK)
+    // This is normal because the URC might come later
+    return ESP_OK;
   }
 
-  // Check result code
-  if (result != 0)
+  result_start += 10; // Skip "+QMTOPEN: "
+
+  int client_idx, result;
+  if (sscanf(result_start, "%d,%d", &client_idx, &result) == 2)
   {
-    ESP_LOGE(TAG, "QMTOPEN failed with result: %d", result);
-    return ESP_FAIL;
+    if (client_idx >= QMTOPEN_CLIENT_IDX_MIN && client_idx <= QMTOPEN_CLIENT_IDX_MAX)
+    {
+      write_resp->client_idx             = (uint8_t) client_idx;
+      write_resp->present.has_client_idx = true;
+    }
+    else
+    {
+      ESP_LOGW(TAG, "Invalid client_idx in response: %d", client_idx);
+    }
+
+    // Set the result code
+    write_resp->result             = (qmtopen_result_t) result;
+    write_resp->present.has_result = true;
+
+    // Log result for debugging
+    ESP_LOGI(TAG,
+             "QMTOPEN operation result: %d (%s)",
+             result,
+             enum_to_str(result, QMTOPEN_RESULT_MAP, QMTOPEN_RESULT_MAP_SIZE));
+
+    return ESP_OK;
   }
 
-  return ESP_OK;
+  return ESP_ERR_INVALID_RESPONSE;
 }
 
-// CREG command definition
+// Command definition for QMTOPEN
 const at_cmd_t AT_CMD_QMTOPEN = {
     .name        = "QMTOPEN",
-    .description = "Open network connection for MQTT client",
-    .type_info   = {[AT_CMD_TYPE_TEST]  = {.parser = NULL, .formatter = NULL},
-                    [AT_CMD_TYPE_READ]  = {.parser = qmtopen_read_parser, .formatter = NULL},
-                    [AT_CMD_TYPE_WRITE] = {.parser    = qmtopen_write_parser,
-                                           .formatter = qmtopen_write_formatter}},
-    .timeout_ms  = 10000, // Spec says 'depends on network'
+    .description = "Open a Network Connection for MQTT Client",
+    .type_info   = {[AT_CMD_TYPE_TEST] =
+                        AT_CMD_TYPE_NOT_IMPLEMENTED, // As requested, skipping test command
+                    [AT_CMD_TYPE_READ]    = {.parser = qmtopen_read_parser, .formatter = NULL},
+                    [AT_CMD_TYPE_WRITE]   = {.parser    = qmtopen_write_parser,
+                                             .formatter = qmtopen_write_formatter},
+                    [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_DOES_NOT_EXIST},
+    .timeout_ms  = 120000 // 120 seconds (network operations can take time)
 };

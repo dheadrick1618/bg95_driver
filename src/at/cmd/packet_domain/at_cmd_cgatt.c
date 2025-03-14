@@ -49,6 +49,7 @@ static esp_err_t cgatt_write_formatter(const void* params, char* buffer, size_t 
 
   const cgatt_write_params_t* const write_params = (const cgatt_write_params_t*) params;
 
+  // Validate range of provided params
   if (write_params->state >= CGATT_STATE_MAX)
   {
     return ESP_ERR_INVALID_ARG;

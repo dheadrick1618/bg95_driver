@@ -20,10 +20,38 @@ The cmd handler uses the format and parsing fxns associated with a command and i
 
 The response is read using the UART interface read in chunks, where received bytes are appended to a temp buffer which, after each loop, is checked as to whether it contains valid response indicators (which depend on the command its type that was sent to the BG95). If no valid response indicator is received after a timeout time (again defined by the command) then it is considered the command failed.
 
+If the commmand expects a 'data response' (something other than the standard OK/ERROR) then the cmd handler calls the associated parsing function, passing it the raw respons string after it is finished being read from the UART interface.
+
 ### Project directory structure 
 
 ```
-TODO - waiting until project is more mature incase things change
+/
+├── include/                       # Header files
+│   ├── at/                        # AT command interface headers
+│   │   ├── at_cmds.h              # General AT command definitions
+│   │   ├── cmd/                   # Command-specific headers by category
+│   │   │   ├── general/           # General modem commands
+│   │   │   ├── hardware_related/  # Hardware-specific commands
+│   │   │   ├── mqtt/              # MQTT protocol commands
+│   │   │   ├── network_service/   # Network registration/operator commands
+│   │   │   ├── packet_domain/     # PDP context and PS attachment commands
+│   │   │   └── sim_related/       # SIM card management commands
+│   │   └── core/                  # Core AT command infrastructure
+│   ├── bg95/                      # BG95-specific module interface
+│   └── enum_utils.h               # Utilities for enum-string conversion
+│
+└── src/                           # Implementation files
+    ├── at/                        # AT command implementations
+    │   ├── cmd/                   # Command-specific implementations by category
+    │   │   ├── general/           # Implementation of general commands
+    │   │   ├── hardware_related/  # Implementation of hardware commands
+    │   │   ├── mqtt/              # Implementation of MQTT commands
+    │   │   ├── network_service/   # Implementation of network service commands
+    │   │   ├── packet_domain/     # Implementation of packet domain commands
+    │   │   └── sim_related/       # Implementation of SIM-related commands
+    │   └── core/                  # Core AT command infrastructure implementation
+    ├── bg95/                      # BG95-specific module implementation
+    └── enum_utils.c               # Implementation of enum utilities
 ```
 
 ## Core Components
@@ -34,11 +62,9 @@ TODO - waiting until project is more mature incase things change
 - Provides generic response handling structures
 - Establishes the base command definition format
 
-<!-- ### 2. AT Commands (`at_cmds.h`, `at_cmds.c`) -->
-<!-- - Contains command-specific enums and data structures -->
-<!-- - Defines individual AT command implementations -->
-<!-- - Includes command validation rules -->
-<!-- - Maps commands to their response parsers -->
+### 2. AT Command source files 
+- Contains command-specific enums and data structures
+- Contains definition of parsing and formatting fxns associated with that command and its available command types 
 
 ### 3. Command Handler (`at_cmd_handler.h`, `at_cmd_handler.c`)
 - Manages UART communication with the BG95 module
@@ -70,7 +96,7 @@ TODO - waiting until project is more mature incase things change
 1. Check module and SIM card status 
 ```
 AT+CPIN?        # Check if SIM is ready
-AT+CSQ          # Check signal quality
+AT+QCSQ          # Check signal quality  (NOTE! - Quectel said that 'AT+CSQ' is for 2G only, and for LTE and NB-IoT we should use 'AT+QCSQ')
 ```
 
 2. Configure network settings 
@@ -88,8 +114,7 @@ AT+CGPADDR=1                      # Verify IP address assignment
 
 4. Check network registration
 ```
-AT+CREG?        # Check network registration status
-AT+CEREG?       # Check EPS (LTE) network registration status
+AT+CEREG?       # Check (LTE or NB-IoT) network registration status (NOTE! - 'AT+CREG' is for 2G)
 ```
 
 5. Ready to use higher level application layer communication protocol such  as MQTT or HTTP ....

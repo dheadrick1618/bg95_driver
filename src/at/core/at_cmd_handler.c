@@ -55,6 +55,26 @@ bool has_command_terminated(const char* raw_response, const at_cmd_t* cmd, at_cm
     return strstr(marker, AT_CRLF) != NULL;
   }
 
+  /// NOTE:  I HATE THIS, BUT BECAUSE QUECTEL DESIGNED THE  QMTCFG  AT CMD STUPIDLY TO HACK THE
+  ///'WRITE' TYPE COMMANDS TO BE DUAL PURPOSE FOR SETTING AND QUERYING / READING THE VALUE OF A
+  /// PARAMETER, THEN I  HAVE TO DO THIS OTHERWISE THE HANDLER TIMES OUT ....
+  // Special handling for commands with dual behavior
+  if (strcmp(cmd->name, "QMTCFG") == 0 && type == AT_CMD_TYPE_WRITE)
+  {
+    // For QMTCFG, we need to check if this is a set or query operation
+    // If we find "+QMTCFG:" in the response, it's a query response
+    if (strstr(raw_response, "+QMTCFG:"))
+    {
+      // Need both data and OK
+      return strstr(ok_pos, AT_CRLF) != NULL && strstr(raw_response, "+QMTCFG:") != NULL;
+    }
+    else
+    {
+      // Just need OK
+      return strstr(ok_pos, AT_CRLF) != NULL;
+    }
+  }
+
   // We have OK - if command type doesn't expect data response, just need CRLF after OK
   if (!cmd->type_info[type].parser)
   {
