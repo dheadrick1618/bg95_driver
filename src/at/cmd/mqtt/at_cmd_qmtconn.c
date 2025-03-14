@@ -290,10 +290,15 @@ static esp_err_t qmtconn_write_parser(const char* response, void* parsed_data)
 const at_cmd_t AT_CMD_QMTCONN = {
     .name        = "QMTCONN",
     .description = "Connect a Client to MQTT Server",
-    .type_info   = {[AT_CMD_TYPE_TEST]    = {.parser = qmtconn_test_parser, .formatter = NULL},
-                    [AT_CMD_TYPE_READ]    = {.parser = qmtconn_read_parser, .formatter = NULL},
-                    [AT_CMD_TYPE_WRITE]   = {.parser    = qmtconn_write_parser,
-                                             .formatter = qmtconn_write_formatter},
+    .type_info   = {[AT_CMD_TYPE_TEST]    = {.parser        = qmtconn_test_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
+                    [AT_CMD_TYPE_READ]    = {.parser        = qmtconn_read_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_OPTIONAL},
+                    [AT_CMD_TYPE_WRITE]   = {.parser        = qmtconn_write_parser,
+                                             .formatter     = qmtconn_write_formatter,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
                     [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_DOES_NOT_EXIST},
     .timeout_ms  = 5000 // Default packet timeout is 5 seconds per specification
 };

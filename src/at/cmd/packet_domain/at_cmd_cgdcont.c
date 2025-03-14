@@ -538,8 +538,12 @@ const at_cmd_t AT_CMD_CGDCONT = {
     .description = "Define PDP Context",
     .type_info   = {[AT_CMD_TYPE_TEST] = AT_CMD_TYPE_NOT_IMPLEMENTED,
                     // [AT_CMD_TYPE_TEST]    = {.parser = cgdcont_test_parser, .formatter = NULL},
-                    [AT_CMD_TYPE_READ]    = {.parser = cgdcont_read_parser, .formatter = NULL},
-                    [AT_CMD_TYPE_WRITE]   = {.parser = NULL, .formatter = cgdcont_write_formatter},
+                    [AT_CMD_TYPE_READ]    = {.parser        = cgdcont_read_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
+                    [AT_CMD_TYPE_WRITE]   = {.parser        = NULL,
+                                             .formatter     = cgdcont_write_formatter,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_SIMPLE_ONLY},
                     [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_DOES_NOT_EXIST},
     .timeout_ms  = 300 // 300ms per spec
 };

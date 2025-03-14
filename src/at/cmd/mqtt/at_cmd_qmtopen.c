@@ -1,5 +1,3 @@
-// components/bg95_driver/src/at/cmd/mqtt/at_cmd_qmtopen.c
-
 #include "at_cmd_qmtopen.h"
 
 #include "at_cmd_structure.h"
@@ -199,9 +197,12 @@ const at_cmd_t AT_CMD_QMTOPEN = {
     .description = "Open a Network Connection for MQTT Client",
     .type_info   = {[AT_CMD_TYPE_TEST] =
                         AT_CMD_TYPE_NOT_IMPLEMENTED, // As requested, skipping test command
-                    [AT_CMD_TYPE_READ]    = {.parser = qmtopen_read_parser, .formatter = NULL},
+                    [AT_CMD_TYPE_READ]    = {.parser        = qmtopen_read_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_OPTIONAL},
                     [AT_CMD_TYPE_WRITE]   = {.parser    = qmtopen_write_parser,
-                                             .formatter = qmtopen_write_formatter},
+                                             .formatter = qmtopen_write_formatter,
+                                             AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
                     [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_DOES_NOT_EXIST},
     .timeout_ms  = 120000 // 120 seconds (network operations can take time)
 };

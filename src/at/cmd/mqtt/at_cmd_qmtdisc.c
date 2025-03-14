@@ -1,4 +1,3 @@
-// at_cmd_qmtdisc.c
 #include "at_cmd_qmtdisc.h"
 
 #include "at_cmd_structure.h"
@@ -144,10 +143,13 @@ static esp_err_t qmtdisc_write_parser(const char* response, void* parsed_data)
 const at_cmd_t AT_CMD_QMTDISC = {
     .name        = "QMTDISC",
     .description = "Disconnect a Client from MQTT Server",
-    .type_info   = {[AT_CMD_TYPE_TEST]    = {.parser = qmtdisc_test_parser, .formatter = NULL},
+    .type_info   = {[AT_CMD_TYPE_TEST]    = {.parser        = qmtdisc_test_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
                     [AT_CMD_TYPE_READ]    = AT_CMD_TYPE_DOES_NOT_EXIST,
-                    [AT_CMD_TYPE_WRITE]   = {.parser    = qmtdisc_write_parser,
-                                             .formatter = qmtdisc_write_formatter},
+                    [AT_CMD_TYPE_WRITE]   = {.parser        = qmtdisc_write_parser,
+                                             .formatter     = qmtdisc_write_formatter,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
                     [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_DOES_NOT_EXIST},
     .timeout_ms  = 5000 // 5 seconds, based on the "default 5s" in the spec
 };

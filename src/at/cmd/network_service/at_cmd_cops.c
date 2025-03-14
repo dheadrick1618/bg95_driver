@@ -183,8 +183,10 @@ const at_cmd_t AT_CMD_COPS = {
     .name        = "COPS",
     .description = "Operator Selection",
     .type_info   = {[AT_CMD_TYPE_TEST]    = AT_CMD_TYPE_NOT_IMPLEMENTED, // TODO: this
-                    [AT_CMD_TYPE_READ]    = {.parser = cops_read_parser, .formatter = NULL},
+                    [AT_CMD_TYPE_READ]    = {.parser        = cops_read_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
                     [AT_CMD_TYPE_WRITE]   = AT_CMD_TYPE_NOT_IMPLEMENTED, // TODO: this
-                    [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_NOT_IMPLEMENTED},
+                    [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_DOES_NOT_EXIST},
     .timeout_ms  = 10000 // 180 seconds is spec
 };

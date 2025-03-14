@@ -82,8 +82,12 @@ const at_cmd_t AT_CMD_CFUN = {
     .name        = "CFUN",
     .description = "Set UE Functionality",
     .type_info   = {[AT_CMD_TYPE_TEST]    = AT_CMD_TYPE_NOT_IMPLEMENTED,
-                    [AT_CMD_TYPE_READ]    = {.parser = cfun_read_parser, .formatter = NULL},
-                    [AT_CMD_TYPE_WRITE]   = {.parser = NULL, .formatter = cfun_write_formatter},
+                    [AT_CMD_TYPE_READ]    = {.parser        = cfun_read_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
+                    [AT_CMD_TYPE_WRITE]   = {.parser        = NULL,
+                                             .formatter     = cfun_write_formatter,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_SIMPLE_ONLY},
                     [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_DOES_NOT_EXIST},
     .timeout_ms  = 5000 // NOTE: Spec says 15 s , but this is too long for us to wait
 };

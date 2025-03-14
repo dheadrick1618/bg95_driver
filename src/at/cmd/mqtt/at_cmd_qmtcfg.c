@@ -956,10 +956,13 @@ static esp_err_t qmtcfg_write_formatter(const void* params, char* buffer, size_t
 const at_cmd_t AT_CMD_QMTCFG = {
     .name        = "QMTCFG",
     .description = "Configure Optional Parameters of MQTT",
-    .type_info   = {[AT_CMD_TYPE_TEST]    = {.parser = qmtcfg_test_parser, .formatter = NULL},
+    .type_info   = {[AT_CMD_TYPE_TEST]    = {.parser        = qmtcfg_test_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
                     [AT_CMD_TYPE_READ]    = AT_CMD_TYPE_NOT_IMPLEMENTED,
-                    [AT_CMD_TYPE_WRITE]   = {.parser    = qmtcfg_write_parser,
-                                             .formatter = qmtcfg_write_formatter},
+                    [AT_CMD_TYPE_WRITE]   = {.parser        = qmtcfg_write_parser,
+                                             .formatter     = qmtcfg_write_formatter,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_OPTIONAL},
                     [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_NOT_IMPLEMENTED},
     .timeout_ms  = 1500 // NOTE: 300ms per spec BUT I added more time just to be safe
 };

@@ -1,5 +1,6 @@
 #include "at_cmd_cgact.h"
 
+#include "at_cmd_structure.h"
 #include "enum_utils.h"
 #include "esp_log.h"
 
@@ -123,8 +124,12 @@ const at_cmd_t AT_CMD_CGACT = {
     .name        = "CGACT",
     .description = "Activate or Deactivate specified PDP context",
     .type_info   = {[AT_CMD_TYPE_TEST]    = AT_CMD_TYPE_NOT_IMPLEMENTED,
-                    [AT_CMD_TYPE_READ]    = {.parser = cgact_read_parser, .formatter = NULL},
-                    [AT_CMD_TYPE_WRITE]   = {.parser = NULL, .formatter = cgact_write_formatter},
+                    [AT_CMD_TYPE_READ]    = {.parser        = cgact_read_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
+                    [AT_CMD_TYPE_WRITE]   = {.parser        = NULL,
+                                             .formatter     = cgact_write_formatter,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_SIMPLE_ONLY},
                     [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_DOES_NOT_EXIST},
     .timeout_ms  = 20000 // NOTE: Spec says 150 s , but this is too long for us to wait
 };

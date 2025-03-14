@@ -143,10 +143,13 @@ static esp_err_t qmtclose_write_parser(const char* response, void* parsed_data)
 const at_cmd_t AT_CMD_QMTCLOSE = {
     .name        = "QMTCLOSE",
     .description = "Close a Network Connection for MQTT Client",
-    .type_info   = {[AT_CMD_TYPE_TEST]    = {.parser = qmtclose_test_parser, .formatter = NULL},
+    .type_info   = {[AT_CMD_TYPE_TEST]    = {.parser        = qmtclose_test_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
                     [AT_CMD_TYPE_READ]    = AT_CMD_TYPE_DOES_NOT_EXIST,
-                    [AT_CMD_TYPE_WRITE]   = {.parser    = qmtclose_write_parser,
-                                             .formatter = qmtclose_write_formatter},
+                    [AT_CMD_TYPE_WRITE]   = {.parser        = qmtclose_write_parser,
+                                             .formatter     = qmtclose_write_formatter,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
                     [AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_DOES_NOT_EXIST},
     .timeout_ms  = 300 // 300ms as per specification
 };

@@ -33,11 +33,11 @@ bool has_command_terminated(const char* raw_response, const at_cmd_t* cmd, at_cm
 
   if (type >= AT_CMD_TYPE_MAX || type < 0)
   {
-    ESP_LOGE(TAG, "Invalid AT CMD TYPE arg provided to 'has_cmd_termianted' helper fxn");
+    ESP_LOGE(TAG, "Invalid AT CMD TYPE arg provided to 'has_cmd_terminated' helper fxn");
     return false;
   }
 
-  // First check if we have a basic response terminator
+  // Check for basic response terminators
   const char* ok_pos    = strstr(raw_response, AT_OK);
   const char* error_pos = strstr(raw_response, AT_ERROR);
   const char* cme_pos   = strstr(raw_response, AT_CME_ERROR);
@@ -55,41 +55,55 @@ bool has_command_terminated(const char* raw_response, const at_cmd_t* cmd, at_cm
     return strstr(marker, AT_CRLF) != NULL;
   }
 
-  /// NOTE:  I HATE THIS, BUT BECAUSE QUECTEL DESIGNED THE  QMTCFG  AT CMD STUPIDLY TO HACK THE
-  ///'WRITE' TYPE COMMANDS TO BE DUAL PURPOSE FOR SETTING AND QUERYING / READING THE VALUE OF A
-  /// PARAMETER, THEN I  HAVE TO DO THIS OTHERWISE THE HANDLER TIMES OUT ....
-  // Special handling for commands with dual behavior
-  if (strcmp(cmd->name, "QMTCFG") == 0 && type == AT_CMD_TYPE_WRITE)
+  // NOTE: THIS MAY STILL BE NEEDED - NEED TO TEEST  THIS
+  //  Special handling for QMTCFG dual behavior
+  //  if (strcmp(cmd->name, "QMTCFG") == 0 && type == AT_CMD_TYPE_WRITE)
+  //  {
+  //      // For QMTCFG, we need to check if this is a set or query operation
+  //      // If we find "+QMTCFG:" in the response, it's a query response
+  //      if (strstr(raw_response, "+QMTCFG:"))
+  //      {
+  //          // Need both data and OK
+  //          return strstr(ok_pos, AT_CRLF) != NULL && strstr(raw_response, "+QMTCFG:") != NULL;
+  //      }
+  //      else
+  //      {
+  //          // Just need OK
+  //          return strstr(ok_pos, AT_CRLF) != NULL;
+  //      }
+  //  }
+
+  // Handle based on response type
+  switch (cmd->type_info[type].response_type)
   {
-    // For QMTCFG, we need to check if this is a set or query operation
-    // If we find "+QMTCFG:" in the response, it's a query response
-    if (strstr(raw_response, "+QMTCFG:"))
-    {
-      // Need both data and OK
-      return strstr(ok_pos, AT_CRLF) != NULL && strstr(raw_response, "+QMTCFG:") != NULL;
-    }
-    else
-    {
-      // Just need OK
+    case AT_CMD_RESPONSE_TYPE_SIMPLE_ONLY:
+      // Only need OK
       return strstr(ok_pos, AT_CRLF) != NULL;
-    }
-  }
 
-  // We have OK - if command type doesn't expect data response, just need CRLF after OK
-  if (!cmd->type_info[type].parser)
-  {
-    return strstr(ok_pos, AT_CRLF) != NULL;
-  }
+    case AT_CMD_RESPONSE_TYPE_DATA_OPTIONAL:
+      // Data is optional, so OK is sufficient to terminate
+      return strstr(ok_pos, AT_CRLF) != NULL;
 
-  // Command expects data response - need both OK and data response with CRLF
-  const char* data_pos = strstr(raw_response, cmd->name);
-  if (!data_pos)
-  {
-    return false; // No data response found yet
-  }
+    case AT_CMD_RESPONSE_TYPE_DATA_REQUIRED:
+      // Requires both data and OK
+      {
+        char cmd_prefix[32];
+        snprintf(cmd_prefix, sizeof(cmd_prefix), "+%s:", cmd->name);
+        const char* data_pos = strstr(raw_response, cmd_prefix);
 
-  // Make sure both OK and data response end with CRLF
-  return strstr(ok_pos, AT_CRLF) && strstr(data_pos, AT_CRLF);
+        if (!data_pos)
+        {
+          return false; // No data response found yet
+        }
+
+        // Need both data response and OK with CRLF
+        return strstr(ok_pos, AT_CRLF) != NULL && strstr(data_pos, AT_CRLF) != NULL;
+      }
+
+    default:
+      ESP_LOGE(TAG, "Unknown response type: %d", cmd->type_info[type].response_type);
+      return false;
+  }
 }
 
 esp_err_t validate_basic_response(const char* raw_response, at_parsed_response_t* parsed_base)
@@ -115,11 +129,40 @@ esp_err_t parse_at_cmd_specific_data_response(const at_cmd_t*             cmd,
                                               const at_parsed_response_t* parsed_base,
                                               void*                       response_data)
 {
-  if (cmd->type_info[type].parser && response_data && parsed_base->has_data_response == true)
+  // If no parser or no response data pointer, return success
+  if (!cmd->type_info[type].parser || !response_data)
   {
-    return cmd->type_info[type].parser(raw_response, response_data);
+    return ESP_OK;
   }
-  return ESP_OK;
+
+  // Handle based on response type
+  switch (cmd->type_info[type].response_type)
+  {
+    case AT_CMD_RESPONSE_TYPE_SIMPLE_ONLY:
+      // No data to parse, return success
+      return ESP_OK;
+
+    case AT_CMD_RESPONSE_TYPE_DATA_OPTIONAL:
+      // If data response exists, parse it. Otherwise, leave response_data as is.
+      if (parsed_base->has_data_response)
+      {
+        return cmd->type_info[type].parser(raw_response, response_data);
+      }
+      return ESP_OK;
+
+    case AT_CMD_RESPONSE_TYPE_DATA_REQUIRED:
+      // Data response required - must be present to parse
+      if (!parsed_base->has_data_response)
+      {
+        ESP_LOGE(TAG, "Required data response missing for command %s", cmd->name);
+        return ESP_ERR_INVALID_RESPONSE;
+      }
+      return cmd->type_info[type].parser(raw_response, response_data);
+
+    default:
+      ESP_LOGE(TAG, "Unknown response type: %d", cmd->type_info[type].response_type);
+      return ESP_ERR_INVALID_STATE;
+  }
 }
 
 esp_err_t read_at_cmd_response(at_cmd_handler_t* handler,

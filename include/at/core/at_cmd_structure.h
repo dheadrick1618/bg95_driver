@@ -18,6 +18,10 @@
 #define AT_CMD_TYPE_NOT_IMPLEMENTED {.parser = NULL, .formatter = NULL}
 #define AT_CMD_TYPE_DOES_NOT_EXIST {.parser = NULL, .formatter = NULL}
 
+// #define AT_CMD_TYPE_NOT_IMPLEMENTED {.parser = NULL, .formatter = NULL, .response_type =
+// AT_CMD_RESPONSE_TYPE_SIMPLE_ONLY} #define AT_CMD_TYPE_DOES_NOT_EXIST {.parser = NULL, .formatter
+// = NULL, .response_type = AT_CMD_RESPONSE_TYPE_SIMPLE_ONLY}
+
 #define AT_CMD_MAX_RESPONSE_LEN 2048
 #define AT_CMD_MAX_CMD_LEN 256
 
@@ -29,6 +33,13 @@ typedef enum
   AT_CMD_TYPE_EXECUTE = 3U, // AT+CMD
   AT_CMD_TYPE_MAX     = 4U
 } at_cmd_type_t;
+
+typedef enum
+{
+  AT_CMD_RESPONSE_TYPE_SIMPLE_ONLY,   // Only expects OK/ERROR (no data response)
+  AT_CMD_RESPONSE_TYPE_DATA_REQUIRED, // Requires a data response (+CMD: ...)
+  AT_CMD_RESPONSE_TYPE_DATA_OPTIONAL, // Data response is optional
+} at_cmd_response_type_t;
 
 // Generic command response definition
 typedef struct
@@ -48,8 +59,9 @@ typedef esp_err_t (*at_param_formatter_t)(const void* params, char* buffer, size
 
 typedef struct
 {
-  at_param_parser_t    parser;    // Function to parse parameters
-  at_param_formatter_t formatter; // Function to format parameters
+  at_param_parser_t      parser;        // Function to parse parameters
+  at_param_formatter_t   formatter;     // Function to format parameters
+  at_cmd_response_type_t response_type; // Expected response type
 } at_cmd_type_info_t;
 
 typedef struct

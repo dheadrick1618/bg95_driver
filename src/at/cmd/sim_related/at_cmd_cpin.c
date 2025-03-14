@@ -96,10 +96,16 @@ const at_cmd_t AT_CMD_CPIN = {
     .name        = "CPIN",
     .description = "Enter PIN",
     .type_info   = {[AT_CMD_TYPE_EXECUTE] = AT_CMD_TYPE_NOT_IMPLEMENTED,
-                    [AT_CMD_TYPE_TEST]    = {.parser = NULL, .formatter = NULL},
-                    [AT_CMD_TYPE_READ]    = {.parser = cpin_cmd_read_type_parser, .formatter = NULL},
+                    [AT_CMD_TYPE_TEST]    = {.parser        = NULL,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_SIMPLE_ONLY},
+                    [AT_CMD_TYPE_READ]    = {.parser        = cpin_cmd_read_type_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
                     [AT_CMD_TYPE_WRITE] =
                         {.parser    = NULL,
-                         .formatter = cpin_cmd_write_type_formatter}}, // Expects Basic Response only
-    .timeout_ms  = 5000                                                // 5 seconds per spec
+                         .formatter = cpin_cmd_write_type_formatter,
+                         .response_type =
+                             AT_CMD_RESPONSE_TYPE_DATA_REQUIRED}}, // Expects Basic Response only
+    .timeout_ms  = 5000                                            // 5 seconds per spec
 };

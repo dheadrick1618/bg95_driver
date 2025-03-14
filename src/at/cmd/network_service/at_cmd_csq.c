@@ -193,10 +193,13 @@ static esp_err_t csq_cmd_execute_type_parser(const char* response, void* parsed_
 const at_cmd_t AT_CMD_CSQ = {
     .name        = "CSQ",
     .description = "Signal Quality Report",
-    .type_info   = {[AT_CMD_TYPE_TEST]    = {.parser = csq_cmd_test_type_parser, .formatter = NULL},
+    .type_info   = {[AT_CMD_TYPE_TEST]    = {.parser        = csq_cmd_test_type_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED},
                     [AT_CMD_TYPE_READ]    = AT_CMD_TYPE_NOT_IMPLEMENTED,
                     [AT_CMD_TYPE_WRITE]   = AT_CMD_TYPE_NOT_IMPLEMENTED,
-                    [AT_CMD_TYPE_EXECUTE] = {.parser    = csq_cmd_execute_type_parser,
-                                             .formatter = NULL}},
+                    [AT_CMD_TYPE_EXECUTE] = {.parser        = csq_cmd_execute_type_parser,
+                                             .formatter     = NULL,
+                                             .response_type = AT_CMD_RESPONSE_TYPE_DATA_REQUIRED}},
     .timeout_ms  = 300 // 300ms per spec
 };
