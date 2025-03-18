@@ -283,3 +283,121 @@ esp_err_t at_cmd_handler_send_and_receive_cmd(at_cmd_handler_t* handler,
   free(raw_response);
   return err;
 }
+
+esp_err_t at_cmd_handler_send_with_prompt(at_cmd_handler_t* handler,
+                                          const at_cmd_t*   cmd,
+                                          at_cmd_type_t     type,
+                                          const void*       params,
+                                          const void*       data,
+                                          size_t            data_len,
+                                          void*             response_data)
+{
+  if (!handler || !cmd || !data || data_len == 0)
+  {
+    ESP_LOGE(TAG, "Invalid arguments provided");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Add this check early
+  if (!at_cmd_type_is_implemented(cmd, type))
+  {
+    ESP_LOGE(TAG, "Command %s does not implement type %d", cmd->name, type);
+    return ESP_ERR_NOT_SUPPORTED;
+  }
+
+  // Validate UART interface
+  if (!handler->uart.write || !handler->uart.read || !handler->uart.context)
+  {
+    ESP_LOGE(TAG, "UART interface not properly initialized");
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  // Format command
+  char      cmd_str[AT_CMD_MAX_CMD_LEN];
+  esp_err_t err = format_at_cmd(cmd, type, params, cmd_str, sizeof(cmd_str));
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "AT cmd formatting failed for %s", cmd->name);
+    return err;
+  }
+
+  // Send command
+  ESP_LOGI(TAG, "Sending command: %s (timeout: %lu ms)", cmd_str, (long unsigned) cmd->timeout_ms);
+  err = handler->uart.write(cmd_str, strlen(cmd_str), handler->uart.context);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "UART interface WRITE failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // Wait for '>' prompt
+  char     prompt_buffer[16] = {0};
+  size_t   bytes_read        = 0;
+  uint32_t start_time        = pdTICKS_TO_MS(xTaskGetTickCount());
+
+  bool prompt_received = false;
+  while ((pdTICKS_TO_MS(xTaskGetTickCount()) - start_time) < 5000) // 5 second timeout for prompt
+  {
+    err = handler->uart.read(
+        prompt_buffer, sizeof(prompt_buffer) - 1, &bytes_read, 100, handler->uart.context);
+    if (err == ESP_OK && bytes_read > 0)
+    {
+      prompt_buffer[bytes_read] = '\0';
+      ESP_LOGI(TAG, "Received: %s", prompt_buffer);
+
+      if (strchr(prompt_buffer, '>') != NULL)
+      {
+        prompt_received = true;
+        break;
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+
+  if (!prompt_received)
+  {
+    ESP_LOGE(TAG, "Timeout waiting for '>' prompt");
+    return ESP_ERR_TIMEOUT;
+  }
+
+  ESP_LOGI(TAG, "Prompt '>' received, sending data (%d bytes)", data_len);
+
+  // Send data
+  err = handler->uart.write(data, data_len, handler->uart.context);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to send data after prompt: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // Read response as usual
+  char* raw_response = malloc(AT_CMD_MAX_RESPONSE_LEN);
+  if (!raw_response)
+  {
+    return ESP_ERR_NO_MEM;
+  }
+
+  err = read_at_cmd_response(handler, cmd, type, raw_response, AT_CMD_MAX_RESPONSE_LEN);
+  if (err != ESP_OK)
+  {
+    free(raw_response);
+    return err;
+  }
+
+  ESP_LOGI(TAG, "Received response: %s", raw_response);
+
+  // Parse and validate basic response
+  at_parsed_response_t parsed_base = {0};
+  err                              = validate_basic_response(raw_response, &parsed_base);
+  if (err != ESP_OK)
+  {
+    free(raw_response);
+    return err;
+  }
+
+  // Parse command-specific response if needed
+  err = parse_at_cmd_specific_data_response(cmd, type, raw_response, &parsed_base, response_data);
+
+  free(raw_response);
+  return err;
+}

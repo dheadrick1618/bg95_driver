@@ -9,6 +9,7 @@
 #include "at_cmd_qmtconn.h"
 #include "at_cmd_qmtdisc.h"
 #include "at_cmd_qmtopen.h"
+#include "at_cmd_qmtpub.h"
 #include "bg95_uart_interface.h"
 
 #include <esp_err.h>
@@ -192,3 +193,13 @@ esp_err_t bg95_mqtt_connect(bg95_handle_t*            handle,
 // Disconnect from MQTT server but keep network connection
 esp_err_t
 bg95_mqtt_disconnect(bg95_handle_t* handle, uint8_t client_idx, qmtdisc_write_response_t* response);
+
+esp_err_t bg95_mqtt_publish_fixed_length(bg95_handle_t*           handle,
+                                         uint8_t                  client_idx,
+                                         uint16_t                 msgid,
+                                         qmtpub_qos_t             qos,
+                                         qmtpub_retain_t          retain,
+                                         const char*              topic,
+                                         const void*              message,
+                                         uint16_t                 message_length,
+                                         qmtpub_write_response_t* response);

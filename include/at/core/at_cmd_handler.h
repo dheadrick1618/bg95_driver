@@ -54,3 +54,12 @@ esp_err_t at_cmd_handler_send_and_receive_cmd(
     at_cmd_type_t     type,
     const void*       params, // Params for write commands
     void*             response_data);     // Response structure - specific to command and type
+
+// Add to at_cmd_handler.h
+esp_err_t at_cmd_handler_send_with_prompt(at_cmd_handler_t* handler,
+                                          const at_cmd_t*   cmd,
+                                          at_cmd_type_t     type,
+                                          const void*       params,
+                                          const void*       data,
+                                          size_t            data_len,
+                                          void*             response_data);

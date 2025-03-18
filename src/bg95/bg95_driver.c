@@ -1780,3 +1780,108 @@ bg95_mqtt_disconnect(bg95_handle_t* handle, uint8_t client_idx, qmtdisc_write_re
 
   return ESP_OK;
 }
+
+esp_err_t bg95_mqtt_publish_fixed_length(bg95_handle_t*           handle,
+                                         uint8_t                  client_idx,
+                                         uint16_t                 msgid,
+                                         qmtpub_qos_t             qos,
+                                         qmtpub_retain_t          retain,
+                                         const char*              topic,
+                                         const void*              message,
+                                         uint16_t                 message_length,
+                                         qmtpub_write_response_t* response)
+{
+  if (NULL == handle || NULL == topic || NULL == message || message_length == 0 ||
+      !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (client_idx > QMTPUB_CLIENT_IDX_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid client_idx: %d (must be 0-%d)", client_idx, QMTPUB_CLIENT_IDX_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (message_length > QMTPUB_MSG_MAX_LEN)
+  {
+    ESP_LOGE(TAG, "Message too long: %d bytes (max %d)", message_length, QMTPUB_MSG_MAX_LEN);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // QoS 0 requires msgid to be 0
+  if (qos == QMTPUB_QOS_AT_MOST_ONCE && msgid != 0)
+  {
+    ESP_LOGW(TAG, "QoS 0 requires msgid=0, forcing msgid to 0");
+    msgid = 0;
+  }
+
+  // For QoS 1 and 2, msgid must be non-zero
+  if ((qos == QMTPUB_QOS_AT_LEAST_ONCE || qos == QMTPUB_QOS_EXACTLY_ONCE) && msgid == 0)
+  {
+    ESP_LOGW(TAG, "QoS %d requires non-zero msgid, using msgid=1", qos);
+    msgid = 1;
+  }
+
+  // Prepare write parameters
+  qmtpub_write_params_t params = {.client_idx = client_idx,
+                                  .msgid      = msgid,
+                                  .qos        = qos,
+                                  .retain     = retain,
+                                  .msglen     = message_length};
+
+  strncpy(params.topic, topic, sizeof(params.topic) - 1);
+  params.topic[sizeof(params.topic) - 1] = '\0'; // Ensure null termination
+
+  ESP_LOGI(TAG,
+           "Publishing fixed-length MQTT message on topic '%s' with QoS %d, client %d, msgid %d, "
+           "length %d",
+           topic,
+           qos,
+           client_idx,
+           msgid,
+           message_length);
+
+  // Send the command with data
+  qmtpub_write_response_t local_response = {0};
+  esp_err_t               err            = at_cmd_handler_send_with_prompt(&handle->at_handler,
+                                                  &AT_CMD_QMTPUB,
+                                                  AT_CMD_TYPE_WRITE,
+                                                  &params,
+                                                  message,
+                                                  message_length,
+                                                  response ? response : &local_response);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to send MQTT publish command: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // If we got a result code in the immediate response, check if it was successful
+  if ((response && response->present.has_result) ||
+      (!response && local_response.present.has_result))
+  {
+    qmtpub_result_t result = response ? response->result : local_response.result;
+
+    if (result != QMTPUB_RESULT_SUCCESS)
+    {
+      ESP_LOGE(TAG,
+               "MQTT publish failed with result: %d (%s)",
+               result,
+               enum_to_str(result, QMTPUB_RESULT_MAP, QMTPUB_RESULT_MAP_SIZE));
+      return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "MQTT message published successfully");
+  }
+  else
+  {
+    // If no result code in the immediate response, that's expected
+    // The URC with the result will come later, the caller needs to wait for it
+    ESP_LOGI(TAG, "MQTT publish command sent successfully, waiting for publication result");
+  }
+
+  return ESP_OK;
+}
