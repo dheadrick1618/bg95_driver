@@ -11,6 +11,7 @@
 #include "at_cmd_qmtopen.h"
 #include "at_cmd_qmtpub.h"
 #include "at_cmd_qmtsub.h"
+#include "at_cmd_qmtuns.h"
 #include "bg95_uart_interface.h"
 
 #include <esp_err.h>
@@ -211,3 +212,9 @@ esp_err_t bg95_mqtt_subscribe(bg95_handle_t*           handle,
                               const char*              topic,
                               qmtsub_qos_t             qos,
                               qmtsub_write_response_t* response);
+
+esp_err_t bg95_mqtt_unsubscribe(bg95_handle_t*           handle,
+                                uint8_t                  client_idx,
+                                uint16_t                 msgid,
+                                const char*              topic,
+                                qmtuns_write_response_t* response);

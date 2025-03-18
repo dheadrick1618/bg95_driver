@@ -1983,3 +1983,81 @@ esp_err_t bg95_mqtt_subscribe(bg95_handle_t*           handle,
 
   return ESP_OK;
 }
+
+esp_err_t bg95_mqtt_unsubscribe(bg95_handle_t*           handle,
+                                uint8_t                  client_idx,
+                                uint16_t                 msgid,
+                                const char*              topic,
+                                qmtuns_write_response_t* response)
+{
+  // Validate parameters
+  if (NULL == handle || NULL == topic || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (client_idx > QMTUNS_CLIENT_IDX_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid client_idx: %d (must be 0-%d)", client_idx, QMTUNS_CLIENT_IDX_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (msgid < QMTUNS_MSGID_MIN || msgid > QMTUNS_MSGID_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid msgid: %d (must be %d-%d)", msgid, QMTUNS_MSGID_MIN, QMTUNS_MSGID_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (topic[0] == '\0' || strlen(topic) >= QMTUNS_TOPIC_MAX_SIZE)
+  {
+    ESP_LOGE(TAG, "Invalid topic: empty or too long (max %d chars)", QMTUNS_TOPIC_MAX_SIZE - 1);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Prepare write parameters
+  qmtuns_write_params_t params = {.client_idx = client_idx, .msgid = msgid, .topic_count = 1};
+
+  // Set the topic
+  strncpy(params.topics[0], topic, QMTUNS_TOPIC_MAX_SIZE - 1);
+  params.topics[0][QMTUNS_TOPIC_MAX_SIZE - 1] = '\0'; // Ensure null termination
+
+  ESP_LOGI(TAG, "Unsubscribing MQTT client %d from topic '%s', msgid %d", client_idx, topic, msgid);
+
+  // Create local response structure if user didn't provide one
+  qmtuns_write_response_t  local_response = {0};
+  qmtuns_write_response_t* resp_ptr       = (response != NULL) ? response : &local_response;
+
+  // Send the command
+  esp_err_t err = at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_QMTUNS, AT_CMD_TYPE_WRITE, &params, resp_ptr);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to send MQTT unsubscribe command: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // If we got a result code in the immediate response, check if it was successful
+  if (resp_ptr->present.has_result)
+  {
+    if (resp_ptr->result != QMTUNS_RESULT_SUCCESS)
+    {
+      ESP_LOGE(TAG,
+               "MQTT unsubscribe failed with result: %d (%s)",
+               resp_ptr->result,
+               enum_to_str(resp_ptr->result, QMTUNS_RESULT_MAP, QMTUNS_RESULT_MAP_SIZE));
+      return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "MQTT unsubscribe successful");
+  }
+  else
+  {
+    // If no result code in the immediate response, that's expected
+    // The URC with the result will come later, the caller needs to wait for it
+    ESP_LOGI(TAG, "MQTT unsubscribe command sent successfully, waiting for result");
+  }
+
+  return ESP_OK;
+}

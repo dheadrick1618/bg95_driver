@@ -17,6 +17,7 @@ idf_component_register(
         "src/at/cmd/mqtt/at_cmd_qmtdisc.c"
         "src/at/cmd/mqtt/at_cmd_qmtpub.c"
         "src/at/cmd/mqtt/at_cmd_qmtsub.c"
+        "src/at/cmd/mqtt/at_cmd_qmtuns.c"
         "src/at/cmd/network_service/at_cmd_csq.c"
         "src/at/cmd/network_service/at_cmd_cops.c"
         "src/at/cmd/packet_domain/at_cmd_cgdcont.c"
