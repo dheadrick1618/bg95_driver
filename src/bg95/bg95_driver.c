@@ -7,6 +7,7 @@
 #include "at_cmd_cops.h"
 #include "at_cmd_csq.h"
 #include "at_cmd_handler.h"
+#include "at_cmd_qcsq.h"
 #include "at_cmd_qmtclose.h"
 #include "at_cmd_qmtconn.h"
 #include "at_cmd_qmtopen.h"
@@ -423,10 +424,19 @@ esp_err_t bg95_connect_to_network(bg95_handle_t* handle)
     return err;
   }
 
-  // Check signal quality (AT+CSQ)
-  // -----------------------------------------------------------
-  int16_t rssi_dbm;
-  err = bg95_get_signal_quality_dbm(handle, &rssi_dbm);
+  // TODO:  REPLACE THIS WITH QCSQ - extended signal quality check (regular CSQ is for 2G)
+  //  Check signal quality (AT+CSQ)
+  //  -----------------------------------------------------------
+  // int16_t rssi_dbm;
+  // err = bg95_get_signal_quality_dbm(handle, &rssi_dbm);
+  // if (err != ESP_OK)
+  // {
+  //   ESP_LOGE(TAG, "Failed to check signal quality: %s", esp_err_to_name(err));
+  //   return err;
+  // }
+
+  qcsq_execute_response_t qcsq_execute_response = {0};
+  err = bg95_get_extended_signal_quality(handle, &qcsq_execute_response);
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "Failed to check signal quality: %s", esp_err_to_name(err));
@@ -2057,6 +2067,72 @@ esp_err_t bg95_mqtt_unsubscribe(bg95_handle_t*           handle,
     // If no result code in the immediate response, that's expected
     // The URC with the result will come later, the caller needs to wait for it
     ESP_LOGI(TAG, "MQTT unsubscribe command sent successfully, waiting for result");
+  }
+
+  return ESP_OK;
+}
+
+esp_err_t bg95_get_extended_signal_quality(bg95_handle_t*           handle,
+                                           qcsq_execute_response_t* signal_quality)
+{
+  if (!handle || !signal_quality || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Execute QCSQ command to get detailed signal quality
+  esp_err_t err =
+      at_cmd_handler_send_and_receive_cmd(&handle->at_handler,
+                                          &AT_CMD_QCSQ,
+                                          AT_CMD_TYPE_EXECUTE,
+                                          NULL, // No parameters needed for EXECUTE command
+                                          signal_quality);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to get extended signal quality: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // Log detailed information based on system mode
+  ESP_LOGI(TAG, "Extended signal quality:");
+  ESP_LOGI(TAG,
+           "  System mode: %s",
+           enum_to_str(signal_quality->sysmode, QCSQ_SYSMODE_MAP, QCSQ_SYSMODE_MAP_SIZE));
+
+  switch (signal_quality->sysmode)
+  {
+    case QCSQ_SYSMODE_NOSERVICE:
+      ESP_LOGI(TAG, "  No service");
+      break;
+
+    case QCSQ_SYSMODE_GSM:
+      if (signal_quality->present.has_value1)
+        ESP_LOGI(TAG, "  GSM RSSI: %d dBm", signal_quality->value1);
+      break;
+
+    case QCSQ_SYSMODE_EMTC:
+      if (signal_quality->present.has_value1)
+        ESP_LOGI(TAG, "  LTE RSSI: %d dBm", signal_quality->value1);
+      if (signal_quality->present.has_value2)
+        ESP_LOGI(TAG, "  LTE RSRP: %d dBm", signal_quality->value2);
+      if (signal_quality->present.has_value3)
+        ESP_LOGI(TAG, "  LTE SINR: %.1f dB", qcsq_sinr_to_db(signal_quality->value3));
+      if (signal_quality->present.has_value4)
+        ESP_LOGI(TAG, "  LTE RSRQ: %d dB", signal_quality->value4);
+      break;
+
+    case QCSQ_SYSMODE_NBIOT:
+      if (signal_quality->present.has_value1)
+        ESP_LOGI(TAG, "  NB-IoT RSSI: %d dBm", signal_quality->value1);
+      if (signal_quality->present.has_value2)
+        ESP_LOGI(TAG, "  NB-IoT RSRP: %d dBm", signal_quality->value2);
+      if (signal_quality->present.has_value3)
+        ESP_LOGI(TAG, "  NB-IoT SINR: %.1f dB", qcsq_sinr_to_db(signal_quality->value3));
+      if (signal_quality->present.has_value4)
+        ESP_LOGI(TAG, "  NB-IoT RSRQ: %d dB", signal_quality->value4);
+      break;
   }
 
   return ESP_OK;

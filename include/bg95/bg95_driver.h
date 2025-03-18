@@ -3,6 +3,7 @@
 #include "at_cmd_cops.h"
 #include "at_cmd_cpin.h"
 #include "at_cmd_handler.h"
+#include "at_cmd_qcsq.h"
 #include "at_cmd_qmtcfg.h"
 // #include "at_cmds.h"
 #include "at_cmd_qmtclose.h"
@@ -218,3 +219,7 @@ esp_err_t bg95_mqtt_unsubscribe(bg95_handle_t*           handle,
                                 uint16_t                 msgid,
                                 const char*              topic,
                                 qmtuns_write_response_t* response);
+
+// Function to add to bg95_driver.h
+esp_err_t bg95_get_extended_signal_quality(bg95_handle_t*           handle,
+                                           qcsq_execute_response_t* signal_quality);
