@@ -10,6 +10,7 @@
 #include "at_cmd_qmtdisc.h"
 #include "at_cmd_qmtopen.h"
 #include "at_cmd_qmtpub.h"
+#include "at_cmd_qmtsub.h"
 #include "bg95_uart_interface.h"
 
 #include <esp_err.h>
@@ -203,3 +204,10 @@ esp_err_t bg95_mqtt_publish_fixed_length(bg95_handle_t*           handle,
                                          const void*              message,
                                          uint16_t                 message_length,
                                          qmtpub_write_response_t* response);
+
+esp_err_t bg95_mqtt_subscribe(bg95_handle_t*           handle,
+                              uint8_t                  client_idx,
+                              uint16_t                 msgid,
+                              const char*              topic,
+                              qmtsub_qos_t             qos,
+                              qmtsub_write_response_t* response);

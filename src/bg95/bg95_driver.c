@@ -1885,3 +1885,101 @@ esp_err_t bg95_mqtt_publish_fixed_length(bg95_handle_t*           handle,
 
   return ESP_OK;
 }
+
+esp_err_t bg95_mqtt_subscribe(bg95_handle_t*           handle,
+                              uint8_t                  client_idx,
+                              uint16_t                 msgid,
+                              const char*              topic,
+                              qmtsub_qos_t             qos,
+                              qmtsub_write_response_t* response)
+{
+  // Validate parameters
+  if (NULL == handle || NULL == topic || !handle->initialized)
+  {
+    ESP_LOGE(TAG, "Invalid arguments or handle not initialized");
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (client_idx > QMTSUB_CLIENT_IDX_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid client_idx: %d (must be 0-%d)", client_idx, QMTSUB_CLIENT_IDX_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (msgid < QMTSUB_MSGID_MIN || msgid > QMTSUB_MSGID_MAX)
+  {
+    ESP_LOGE(TAG, "Invalid msgid: %d (must be %d-%d)", msgid, QMTSUB_MSGID_MIN, QMTSUB_MSGID_MAX);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (qos > QMTSUB_QOS_EXACTLY_ONCE)
+  {
+    ESP_LOGE(TAG, "Invalid QoS: %d (must be 0-2)", qos);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (topic[0] == '\0' || strlen(topic) >= QMTSUB_TOPIC_MAX_SIZE)
+  {
+    ESP_LOGE(TAG, "Invalid topic: empty or too long (max %d chars)", QMTSUB_TOPIC_MAX_SIZE - 1);
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  // Prepare write parameters
+  qmtsub_write_params_t params = {.client_idx = client_idx, .msgid = msgid, .topic_count = 1};
+
+  // Set the topic and QoS
+  strncpy(params.topics[0].topic, topic, QMTSUB_TOPIC_MAX_SIZE - 1);
+  params.topics[0].topic[QMTSUB_TOPIC_MAX_SIZE - 1] = '\0'; // Ensure null termination
+  params.topics[0].qos                              = qos;
+
+  ESP_LOGI(TAG,
+           "Subscribing MQTT client %d to topic '%s' with QoS %d, msgid %d",
+           client_idx,
+           topic,
+           qos,
+           msgid);
+
+  // Create local response structure if user didn't provide one
+  qmtsub_write_response_t  local_response = {0};
+  qmtsub_write_response_t* resp_ptr       = (response != NULL) ? response : &local_response;
+
+  // Send the command
+  esp_err_t err = at_cmd_handler_send_and_receive_cmd(
+      &handle->at_handler, &AT_CMD_QMTSUB, AT_CMD_TYPE_WRITE, &params, resp_ptr);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to send MQTT subscribe command: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // If we got a result code in the immediate response, check if it was successful
+  if (resp_ptr->present.has_result)
+  {
+    if (resp_ptr->result != QMTSUB_RESULT_SUCCESS)
+    {
+      ESP_LOGE(TAG,
+               "MQTT subscribe failed with result: %d (%s)",
+               resp_ptr->result,
+               enum_to_str(resp_ptr->result, QMTSUB_RESULT_MAP, QMTSUB_RESULT_MAP_SIZE));
+      return ESP_FAIL;
+    }
+
+    if (resp_ptr->present.has_value)
+    {
+      ESP_LOGI(TAG, "MQTT subscription successful, granted QoS: %d", resp_ptr->value);
+    }
+    else
+    {
+      ESP_LOGI(TAG, "MQTT subscription successful");
+    }
+  }
+  else
+  {
+    // If no result code in the immediate response, that's expected
+    // The URC with the result will come later, the caller needs to wait for it
+    ESP_LOGI(TAG, "MQTT subscribe command sent successfully, waiting for subscription result");
+  }
+
+  return ESP_OK;
+}
