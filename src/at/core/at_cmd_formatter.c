@@ -29,11 +29,23 @@ static esp_err_t format_read_type_command(const char* cmd_name, char* buffer, si
 
 static esp_err_t format_execute_type_command(const char* cmd_name, char* buffer, size_t buffer_size)
 {
-  int written = snprintf(buffer, buffer_size, "AT+%s\r\n", cmd_name);
+  int written;
+
+  // Check if this is the basic AT command or a regular AT+ command
+  if (strcmp(cmd_name, "AT") == 0)
+  {
+    written = snprintf(buffer, buffer_size, "AT\r\n");
+  }
+  else
+  {
+    written = snprintf(buffer, buffer_size, "AT+%s\r\n", cmd_name);
+  }
+
   if (written < 0 || written >= buffer_size)
   {
     return ESP_FAIL;
   }
+
   return ESP_OK;
 }
 

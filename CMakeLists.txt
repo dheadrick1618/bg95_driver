@@ -10,6 +10,7 @@ idf_component_register(
         "src/enum_utils.c"
         #### -- Commands --- ####
         "src/at/cmd/general/at_cmd_cfun.c"
+        "src/at/cmd/general/at_cmd_at.c"
         "src/at/cmd/mqtt/at_cmd_qmtcfg.c"
         "src/at/cmd/mqtt/at_cmd_qmtopen.c"
         "src/at/cmd/mqtt/at_cmd_qmtclose.c"
@@ -38,4 +39,5 @@ idf_component_register(
         "include/bg95"
     REQUIRES 
         esp_driver_uart
+        esp_driver_gpio
 )

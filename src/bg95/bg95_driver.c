@@ -1,18 +1,23 @@
 #include "bg95_driver.h"
 
+#include "at_cmd_at.h"
 #include "at_cmd_cfun.h"
 #include "at_cmd_cgact.h"
 #include "at_cmd_cgdcont.h"
 #include "at_cmd_cgpaddr.h"
 #include "at_cmd_cops.h"
 #include "at_cmd_csq.h"
+#include "at_cmd_gmr.h"
 #include "at_cmd_handler.h"
 #include "at_cmd_qcsq.h"
 #include "at_cmd_qmtclose.h"
 #include "at_cmd_qmtconn.h"
 #include "at_cmd_qmtopen.h"
 #include "at_cmd_structure.h"
+#include "freertos/projdefs.h"
+#include "hal/gpio_types.h"
 
+#include <driver/gpio.h>
 #include <esp_err.h>
 #include <esp_log.h>
 #include <stdio.h>
@@ -20,44 +25,133 @@
 
 static const char* TAG = "BG95_DRIVER";
 
-// Use a GPIO to send a pulse to the PWR KEY pin to turn on the BG95 module
-// TODO: This
-// static esp_err_t pulse_pwr_key_pin(void) {
-//   return ESP_OK;
-// }
-
-esp_err_t bg95_init(bg95_handle_t* handle, bg95_uart_interface_t* uart)
+esp_err_t bg95_init(bg95_handle_t* handle, bg95_uart_interface_t* uart, uint8_t pwrkey_gpio_num)
 {
   if (!handle || !uart)
   {
     return ESP_ERR_INVALID_ARG;
   }
+  esp_err_t err;
 
   memset(handle, 0, sizeof(bg95_handle_t));
 
-  // TODO: Power Cycle the BG95  -  then wait a bit to let it power up - do this using the PWRKEY
-
   // Initialize AT command handler with UART interface
-  esp_err_t err = at_cmd_handler_init(&handle->at_handler, uart);
+  err = at_cmd_handler_init(&handle->at_handler, uart);
   if (err != ESP_OK)
   {
+    ESP_LOGE(TAG, "ERROR: AT CMD handler init has FAILED: %s", esp_err_to_name(err));
     return err;
   }
 
+  vTaskDelay(pdMS_TO_TICKS(1000));
+
+  // Configure PWRKEY GPIO as an output and disable pulldown and pullup
+  handle->pwrkey_gpio_num = pwrkey_gpio_num;
+
+  gpio_config_t io_conf = {};
+  io_conf.intr_type     = GPIO_INTR_DISABLE;
+  io_conf.mode          = GPIO_MODE_OUTPUT;
+  // Bitwise operations to toggle the nth bit, here pwrkey_gpio_num is n
+  io_conf.pin_bit_mask = (1ULL << pwrkey_gpio_num);
+  io_conf.pull_down_en = 0;
+  io_conf.pull_up_en   = 0;
+  err                  = gpio_config(&io_conf);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "ERROR: PWRKEY GPIO config has FAILED: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // First test if module is responsive
+  bool is_responsive = bg95_test_module_is_responsive(handle);
+
+  if (!is_responsive)
+  {
+    ESP_LOGI(TAG, "BG95 module not responsive - attempting power on");
+    err = bg95_pulse_pwrkey_pin(handle);
+    if (err != ESP_OK)
+    {
+      ESP_LOGE(TAG, "ERROR: BG95 Module power ON has FAILED: %s", esp_err_to_name(err));
+      return err;
+    }
+
+    // Wait for device to power on after the PWRKEY pulse
+    vTaskDelay(pdMS_TO_TICKS(15000));
+
+    // Now try again to check device responsiveness
+    is_responsive = bg95_test_module_is_responsive(handle);
+
+    if (!is_responsive)
+    {
+      ESP_LOGE(TAG, "ERROR: BG95 Module not responsive after pwrkey pulse");
+      return ESP_ERR_TIMEOUT; // Return an appropriate error code
+    }
+  }
+
+  // Only mark as initialized if the module is responsive
   handle->initialized = true;
+  ESP_LOGI(TAG, "BG95 successfully initialized");
   return ESP_OK;
 }
 
 esp_err_t bg95_deinit(bg95_handle_t* handle)
 {
-  // free pointer for bg95  handle
   if (NULL == handle)
   {
     ESP_LOGE(TAG, "Driver handle deinit failed");
     return ESP_ERR_INVALID_ARG;
   }
+  // free pointer for bg95  handle
   free(handle);
   return ESP_OK;
+}
+
+// Pulse PWRKEY gpio HIGH, for 500ms - 1000ms  as per documentation in  series hardware design
+// guide v1.6
+// This will turn ON the device if it is OFF, and turn OFF the device if it is ON
+esp_err_t bg95_pulse_pwrkey_pin(bg95_handle_t* handle)
+{
+  if (NULL == handle)
+  {
+    return ESP_ERR_INVALID_ARG;
+  }
+  esp_err_t err;
+  ESP_LOGI(TAG, "Pulsing PWRKEY pin");
+  err = gpio_set_level(handle->pwrkey_gpio_num, 1);
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+  vTaskDelay(pdMS_TO_TICKS(750));
+  err = gpio_set_level(handle->pwrkey_gpio_num, 0);
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+  vTaskDelay(pdMS_TO_TICKS(250));
+
+  return ESP_OK;
+}
+
+// //TODO: This - right now I am just using the 'get firmware' AT+GMR  cmd to check this
+bool bg95_test_module_is_responsive(bg95_handle_t* handle)
+{
+  if (NULL == handle)
+  {
+    return false;
+  }
+
+  // Send the basic AT command
+  esp_err_t err = at_cmd_handler_send_and_receive_cmd(&handle->at_handler,
+                                                      &AT_CMD_AT,
+                                                      AT_CMD_TYPE_EXECUTE,
+                                                      NULL, // No parameters
+                                                      NULL  // No response data needed
+  );
+
+  ESP_LOGI(TAG, "AT command responsiveness test: %s", (err == ESP_OK) ? "Success" : "Failed");
+
+  return (err == ESP_OK);
 }
 
 esp_err_t bg95_soft_restart(bg95_handle_t* handle)

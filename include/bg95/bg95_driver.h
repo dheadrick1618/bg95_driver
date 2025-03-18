@@ -22,11 +22,12 @@ typedef struct
 {
   at_cmd_handler_t at_handler;
   bool             initialized;
+  uint8_t          pwrkey_gpio_num;
 } bg95_handle_t;
 
 // Init a driver handle - scope of the handle pointer is responsibility of user
 // The driver can be init with either a mock or hardware (actual) UART interface
-esp_err_t bg95_init(bg95_handle_t* handle, bg95_uart_interface_t* uart);
+esp_err_t bg95_init(bg95_handle_t* handle, bg95_uart_interface_t* uart, uint8_t pwrkey_gpio_num);
 
 // free handle pointer
 esp_err_t bg95_deinit(bg95_handle_t* handle);
@@ -34,7 +35,10 @@ esp_err_t bg95_deinit(bg95_handle_t* handle);
 // As per the hardware design guide v1.6, the module can be turned on by driving the PWRKEY pin low
 // for 500-1000ms
 // TODO: Implement this
-esp_err_t bg95_turn_module_on(bg95_handle_t* handle);
+esp_err_t bg95_pulse_pwrkey_pin(bg95_handle_t* handle);
+
+// Sends an arbitrary AT command and waits for response to confirm the bg95  is responsive
+bool bg95_test_module_is_responsive(bg95_handle_t* handle);
 
 // TODO: this
 //  AT+QPOWD  cmd  can be used to turn module off
